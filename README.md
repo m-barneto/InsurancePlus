@@ -1,2 +1,2 @@
-# Normalised Bots
-Makes bots a bit more fair by giving them the same health as player (with optional gear change to accommodate lower health) and removing some OP skills.
+# Insurance+
+Insured items will not be dropped on dead, with options to disable "insurance fraud" and enabled meds/ammo/food insurance

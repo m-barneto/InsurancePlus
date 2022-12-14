@@ -1,9 +1,8 @@
 {
-	"ChangeHealth": false,
-	"AffectCheatySkills": true,
-	"AddMoreGear": true,
-	"DontAffectFollowingBots": [
-		"Add Bot Here",
-		"Add Bot Here"
-	]
+	"EnableDefaultInsurance": true,
+	"AllowInsuranceOf": {
+		"Ammo": true,
+		"Food": true,
+		"Meds": true
+	}
 }

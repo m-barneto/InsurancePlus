@@ -107,6 +107,7 @@ class Mod {
 		
 		const toDelete = [];
 		const returnToDeleteGear = [];
+		const returnToDeleteWeap = [];
 		const insuredItems = [];
 		const dbParentIdsToCheck = [
 			"5795f317245977243854e041",	// Container
@@ -138,8 +139,19 @@ class Mod {
 				}
 				
 				// Remove items inside gear items
-				if (item.slotId != "hideout" && !item.slotId != "FirstPrimaryWeapon" && !item.slotId != "SecondPrimaryWeapon" && !item.slotId != "Holster" && !inRaidHelper.isItemKeptAfterDeath(item.slotId)) {
+				if (item.slotId != "hideout" 
+				&& item.slotId != "FirstPrimaryWeapon"
+				&& item.slotId != "SecondPrimaryWeapon" 
+				&& item.slotId != "Holster" 
+				&& !inRaidHelper.isItemKeptAfterDeath(item.slotId)) {
 					toDelete.push(...Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnToDeleteGear, logger));
+				}
+				
+				// handle equipped guns, since we don't want want the become unoperable in player hands
+				if (item.slotId === "FirstPrimaryWeapon" 
+				|| item.slotId === "SecondPrimaryWeapon" 
+				|| item.slotId === "Holster" ) {
+					toDelete.push(...Mod.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnToDeleteWeap, logger));
 				}
 			}
 		}
@@ -201,29 +213,59 @@ class Mod {
 	{
 		
 		for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
-			
-			//logger.info("inside of a function")
-			
 			// Don't delete items in special slots
-			// Can be special slot 1, 2 or 3
 			// also skip insured items
 			if (!itemInInventory.slotId.includes("SpecialSlot")) {
-				if (!insuredItems.includes(itemInInventory._id) && !returnToDeleteGear.includes(itemInInventory._id)) {
+				if (!insuredItems.includes(itemInInventory._id) 
+				&& !returnToDeleteGear.includes(itemInInventory._id)) {
 					returnToDeleteGear.push(itemInInventory._id);
-					//logger.info("inside of a function 2")
+				} else if (dbParentIdsToCheck.includes(database.templates.items[itemInInventory._tpl]._parent)) {
+					Mod.handleInventoryItems(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, database, returnToDeleteGear, logger);
 				}
-			}
-			
-			// if item parent is in Parent Ids To Check, then call this function once more to handle nested containers, backpacks etc
-			//logger.info(database.items[itemInInventory._tpl]._parent)
-			if (dbParentIdsToCheck.includes(database.templates.items[itemInInventory._tpl]._parent)) {
-				
-				//logger.info("inside of a function 3")
-				Mod.handleInventoryItems(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, database, returnToDeleteGear, logger);
 			}
 		}
 		
 		return returnToDeleteGear;
+	}
+	
+	
+	// TO-DO
+	// this goes through bunch of useless loops, find where and remove
+	static handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnToDeleteWeap, logger)
+	{
+		for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
+			
+			// skip if its ammo, we want to keep it
+			if (database.templates.items[itemInInventory._tpl]._parent === "5485a8684bdc2da71d8b4567") {
+				continue;
+			}
+			
+			if (database.templates.items[item._tpl]._props.Slots.length != 0) {
+				for (const slotsIndex in database.templates.items[item._tpl]._props.Slots) {
+					if (database.templates.items[item._tpl]._props.Slots[slotsIndex]._props.filters[0].Filter.includes(itemInInventory._tpl)) {
+						
+						// check if the item is required, like pistol grips, gasblocks, etc
+						if (!insuredItems.includes(itemInInventory._id) 
+						&& !returnToDeleteWeap.includes(itemInInventory._id) 
+						&& database.templates.items[item._tpl]._props.Slots[slotsIndex]._required === false) {
+							returnToDeleteWeap.push(itemInInventory._id);
+							break;
+						}
+					}
+				}
+			} else if (!insuredItems.includes(itemInInventory._id) 
+			&& !returnToDeleteWeap.includes(itemInInventory._id)) {
+				returnToDeleteWeap.push(itemInInventory._id);
+			}
+			
+			// if item can have slots and is insured, call this function again
+			if (database.templates.items[itemInInventory._tpl]._props.Slots.length != 0 && insuredItems.includes(itemInInventory._id)) {
+				Mod.handleEquippedGuns(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, database, returnToDeleteWeap, logger)
+			}
+			
+		}
+		
+		return returnToDeleteWeap;
 	}
 	
 }

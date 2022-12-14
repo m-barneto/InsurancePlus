@@ -21,6 +21,9 @@ class Mod {
 		// resolve original container
 		const inraidController = Mod.container.resolve("InraidController");
 		
+		// love me some logging
+		const logger = Mod.container.resolve("WinstonLogger");
+		
 		const currentProfile = inraidController.saveServer.getProfile(sessionID);
 		const locationName = currentProfile.inraid.location.toLowerCase();
 
@@ -29,6 +32,7 @@ class Mod {
 		let pmcData = currentProfile.characters.pmc;
 		const isDead = inraidController.isPlayerDead(offraidData.exit);
 		const preRaidGear = inraidController.inRaidHelper.getPlayerGear(pmcData.Inventory.items);
+		const preRaidInsuredItems = JSON.parse(JSON.stringify(pmcData.InsuredItems));
 
 		currentProfile.inraid.character = "pmc";
 
@@ -46,12 +50,15 @@ class Mod {
 		// remove inventory if player died and send insurance items
 		if (isDead)
 		{
-			pmcData = Mod.customPostDeath(offraidData, pmcData, insuranceEnabled, preRaidGear, sessionID);
+			pmcData = Mod.customPostDeath(offraidData, pmcData, insuranceEnabled, preRaidGear, sessionID, logger);
 		}
+		
+		// save post raid gear after you're done with deleting non insured items
+		const postRaidGear = pmcData.Inventory.items;
 		
 		if (insuranceEnabled)
 		{
-			inraidController.insuranceService.storeLostGear(pmcData, offraidData, preRaidGear, sessionID);
+			Mod.customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, logger);
 		}
 
 		if (insuranceEnabled)
@@ -60,13 +67,10 @@ class Mod {
 		}
 	}
 	
-	static customPostDeath(postRaidSaveRequest, pmcData, insuranceEnabled, preRaidGear, sessionID) 
+	static customPostDeath(postRaidSaveRequest, pmcData, insuranceEnabled, preRaidGear, sessionID, logger) 
 	{
 		// resolve og container
 		const inraidController = Mod.container.resolve("InraidController");
-		
-		// love me some logging
-		const logger = Mod.container.resolve("WinstonLogger");
 		
 		inraidController.updatePmcHealthPostRaid(postRaidSaveRequest, pmcData);
 
@@ -106,7 +110,7 @@ class Mod {
 		// dump all insured items in a simple array
 		for (const insItem of pmcData.InsuredItems) {
 			insuredItems.push(insItem.itemId);
-		};
+		}
 
 		for (const item of pmcData.Inventory.items) {
 			
@@ -114,8 +118,8 @@ class Mod {
 			if (item.parentId === pmcData.Inventory.equipment) {
 				if (item.parentId === pmcData.Inventory.equipment && !inRaidHelper.isItemKeptAfterDeath(item.slotId) && !insuredItems.includes(item._id) || item.parentId === pmcData.Inventory.questRaidItems) {
 					toDelete.push(item._id);
-				};
-			};
+				}
+			}
 			
 			// Remove items in pockets, backpacks and rigs
 			if (item.slotId === "Pockets" || item.slotId === "TacticalVest" || item.slotId === "Backpack") {
@@ -125,22 +129,63 @@ class Mod {
 					// also skip insured items
 					if (itemInInventory.slotId.includes("SpecialSlot") || insuredItems.includes(itemInInventory._id)) {
 						continue;
-					};
+					}
 					
 					toDelete.push(itemInInventory._id);
 				}
-			};
+			}
 			
-		};
+		}
 
 		// delete items
 		for (const item of toDelete) {
 			inRaidHelper.inventoryHelper.removeItem(pmcData, item, sessionID);
-		};
+		}
 
 		pmcData.Inventory.fastPanel = {};
 
 		return pmcData;
+	}
+	
+	static customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, logger)
+	{
+		// resolve required container, yada yada
+		const insuranceService = Mod.container.resolve("InsuranceService");
+		
+		const preRaidGearHash = {};
+		const offRaidGearHash = {};
+		const gears = [];
+
+		// Build a hash table to reduce loops
+		for (const item of preRaidGear) {
+			preRaidGearHash[item._id] = item;
+		}
+
+		// Build a hash of offRaidGear
+		for (const item of postRaidGear) {
+			offRaidGearHash[item._id] = item;
+		}
+
+		for (const insuredItem of preRaidInsuredItems) {
+			
+			if (preRaidGearHash[insuredItem.itemId]) {
+				// This item exists in preRaidGear, meaning we brought it into the raid...
+				// Check if we brought it out of the raid
+				if (!offRaidGearHash[insuredItem.itemId]) {
+					// We didn't bring this item out! We must've lost it.
+					gears.push({
+						"pmcData": pmcData,
+						"insuredItem": insuredItem,
+						"item": preRaidGearHash[insuredItem.itemId],
+						"sessionID": sessionID
+					});
+				}
+			}
+		}
+
+		for (const gear of gears) {
+			insuranceService.addGearToSend(gear.pmcData, gear.insuredItem, gear.item, gear.sessionID);
+		}
 	}
 }
 

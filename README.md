@@ -1,2 +1,2 @@
 # Insurance+
-Insured items will not be dropped on dead, with options to disable "insurance fraud" and enable meds/ammo/food insurance
+Insured items will not be dropped on dead, with option to disable vanilla insurance.

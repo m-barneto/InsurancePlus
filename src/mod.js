@@ -174,7 +174,7 @@ class Mod {
 			}
 		}
 		
-		logger.info(toDelete)
+		//logger.info(toDelete)
 
 		// delete items
 		for (const item of toDelete) {

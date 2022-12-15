@@ -1,2 +1,2 @@
 # Insurance+
-Insured items will not be dropped on dead, with option to disable vanilla insurance.
+Insured items will not be dropped on death, with option to disable vanilla insurance.

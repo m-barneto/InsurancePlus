@@ -1,8 +1,3 @@
 {
-	"EnableDefaultInsurance": true,
-	"AllowInsuranceOf": {
-		"Ammo": true,
-		"Food": true,
-		"Meds": true
-	}
+	"EnableDefaultInsurance": true
 }

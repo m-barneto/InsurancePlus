@@ -16,6 +16,24 @@ class Mod {
 		}, {frequency: "Always"});
 	}
 	
+	postDBLoad(container) {
+		// constants
+		const logger = container.resolve("WinstonLogger");
+		const database = container.resolve("DatabaseServer").getTables();
+		const config = require("../config/config.json");
+		const viableMaps = ["bigmap", "factory4_day", "factory4_night", "interchange", "lighthouse", "rezervbase", "shoreline", "woods"];
+		
+		// if default insurance is turned off, make it false in map files
+		// dont handle labs, base game already has it at false
+		if (!config.EnableDefaultInsurance) {
+			for (const map in database.locations) {
+				if (viableMaps.includes(map)) {
+					database.locations[map].base.Insurance = false;
+				}
+			}
+		}
+	}
+	
 	static customSavePmc(sessionID, offraidData)
 	{
 		// resolve original container

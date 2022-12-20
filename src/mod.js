@@ -140,7 +140,8 @@ class Mod {
 			"5447b5cf4bdc2d65278b4567",	// Pistol
 			"5447b6194bdc2d67278b4567",	// Marksman Rifles
 			"5447b5f14bdc2d61278b4567",	// Assault Rifles
-			"5447b5fc4bdc2d87278b4567"	// Assault Carbines
+			"5447b5fc4bdc2d87278b4567",	// Assault Carbines
+			"617f1ef5e8b54b0998387733"	// Revolvers
 		];
 		
 		// dump all insured items in a simple array

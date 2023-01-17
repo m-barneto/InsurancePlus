@@ -1,3 +1,4 @@
 {
-	"EnableDefaultInsurance": false
+	"EnableDefaultInsurance": false,
+	"LoseInsuranceOnItemAfterDeath": true
 }

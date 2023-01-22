@@ -117,10 +117,11 @@ class Mod {
 		const database = Mod.container.resolve("DatabaseServer").getTables();
 		const config = require("../config/config.json");
 		
-		const toDelete = [];
-		const returnToDeleteGear = [];
-		const returnToDeleteWeap = [];
 		const insuredItems = [];
+		const deleteObj = {
+			"DeleteItem": [],
+			"DeleteInsurance": []
+		};
 		const dbParentIdsToCheck = [
 			"5795f317245977243854e041",	// Container
 			"5448e54d4bdc2dcc718b4568",	// Armor
@@ -137,7 +138,6 @@ class Mod {
 			"5447b5fc4bdc2d87278b4567",	// Assault Carbines
 			"617f1ef5e8b54b0998387733"	// Revolvers
 		];
-		const equippedInsuranceItems = [];
 		
 		// dump all insured items in a simple array
 		for (const insItem of pmcData.InsuredItems) {
@@ -149,42 +149,48 @@ class Mod {
 			// loop through inventory items
 			if (item.parentId === pmcData.Inventory.equipment) {
 				// add equipped insured items to an insurance delete array
-				if (config.LoseInsuranceOnItemAfterDeath) {
-					if (insuredItems.includes(item._id)) {
-						equippedInsuranceItems.push(item._id);
-					}
+				if (insuredItems.includes(item._id)) {
+					deleteObj.DeleteInsurance.push(item._id);
 				}
 				
 				// push uninsured item to delete array
 				if (!inRaidHelper.isItemKeptAfterDeath(item.slotId) && !insuredItems.includes(item._id) || item.parentId === pmcData.Inventory.questRaidItems) {
-					toDelete.push(item._id);
+					deleteObj.DeleteItem.push(item._id);
+				}
+				
+				// handle them pockets
+				if (item.slotId === "Pockets" ) {
+					const tempObject = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj)
+					
+					deleteObj.DeleteItem.push(...tempObject.DeleteItem);
+					deleteObj.DeleteInsurance.push(...tempObject.DeleteInsurance);
 				}
 				
 				// Remove items inside gear items
-				if (item.slotId != "hideout" 
-				 && item.slotId != "FirstPrimaryWeapon"
-				 && item.slotId != "SecondPrimaryWeapon" 
-				 && item.slotId != "Holster" 
-				 && !inRaidHelper.isItemKeptAfterDeath(item.slotId)) {
-					toDelete.push(...Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnToDeleteGear));
+				if (item.slotId != "hideout" && item.slotId != "FirstPrimaryWeapon" && item.slotId != "SecondPrimaryWeapon" && item.slotId != "Holster" && !inRaidHelper.isItemKeptAfterDeath(item.slotId)) {
+					const tempObject = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj)
+					
+					deleteObj.DeleteItem.push(...tempObject.DeleteItem);
+					deleteObj.DeleteInsurance.push(...tempObject.DeleteInsurance);
 				}
 				
 				// handle equipped guns, since we don't want want them becoming unoperable in player hands
-				if (item.slotId === "FirstPrimaryWeapon" 
-				 || item.slotId === "SecondPrimaryWeapon" 
-				 || item.slotId === "Holster" ) {
-					toDelete.push(...Mod.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnToDeleteWeap));
+				if (item.slotId === "FirstPrimaryWeapon" || item.slotId === "SecondPrimaryWeapon" || item.slotId === "Holster") {
+					const tempObject = Mod.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj)
+					
+					deleteObj.DeleteItem.push(...tempObject.DeleteItem);
+					deleteObj.DeleteInsurance.push(...tempObject.DeleteInsurance);
 				}
 			}
 		}
 		
 		// remove insurance from equipped items
 		if (config.LoseInsuranceOnItemAfterDeath) {
-			pmcData.InsuredItems = Mod.removeInsurance(pmcData.InsuredItems, equippedInsuranceItems)
+			pmcData.InsuredItems = Mod.removeInsurance(pmcData.InsuredItems, deleteObj.DeleteInsurance)
 		}
 
 		// delete items
-		for (const item of toDelete) {
+		for (const item of deleteObj.DeleteItem) {
 			inRaidHelper.inventoryHelper.removeItem(pmcData, item, sessionID);
 		}
 
@@ -234,30 +240,33 @@ class Mod {
 		}
 	}
 	
-	static handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnToDeleteGear)
+	static handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnObj)
 	{
-		
 		for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
 			// Don't delete items in special slots
 			// also skip insured items
 			if (!itemInInventory.slotId.includes("SpecialSlot")) {
 				
-				if (!insuredItems.includes(itemInInventory._id) && !returnToDeleteGear.includes(itemInInventory._id)) {
-					returnToDeleteGear.push(itemInInventory._id);
+				if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id)) {
+					returnObj.DeleteItem.push(itemInInventory._id);
 				} else if (dbParentIdsToCheck.includes(database.templates.items[itemInInventory._tpl]._parent)) {
-					Mod.handleInventoryItems(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, database, returnToDeleteGear);
+					const tempObject = Mod.handleInventoryItems(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, database, returnObj)
+					
+					returnObj.DeleteItem.push(...tempObject.DeleteItem);
+					returnObj.DeleteInsurance.push(...tempObject.DeleteInsurance);
 				}
 			}
 		}
 		
-		return returnToDeleteGear;
+		return returnObj;
 	}
 	
 	
 	// TO-DO
 	// this goes through bunch of useless loops, find where and remove
-	static handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnToDeleteWeap)
+	static handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnObj)
 	{
+		
 		for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
 			
 			// skip if its ammo, we want to keep it
@@ -270,26 +279,27 @@ class Mod {
 					if (database.templates.items[item._tpl]._props.Slots[slotsIndex]._props.filters[0].Filter.includes(itemInInventory._tpl)) {
 						
 						// check if the item is required, like pistol grips, gasblocks, etc
-						if (!insuredItems.includes(itemInInventory._id) 
-						 && !returnToDeleteWeap.includes(itemInInventory._id) 
-						 && database.templates.items[item._tpl]._props.Slots[slotsIndex]._required === false) {
-							returnToDeleteWeap.push(itemInInventory._id);
+						if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && database.templates.items[item._tpl]._props.Slots[slotsIndex]._required === false) {
+							returnObj.DeleteItem.push(itemInInventory._id);
 							break;
 						}
 					}
 				}
-			} else if (!insuredItems.includes(itemInInventory._id) && !returnToDeleteWeap.includes(itemInInventory._id)) {
-				returnToDeleteWeap.push(itemInInventory._id);
+			} else if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id)) {
+				returnObj.DeleteItem.push(itemInInventory._id);
 			}
 			
 			// if item can have slots and is insured, call this function again
 			if (database.templates.items[itemInInventory._tpl]._props.Slots.length != 0 && insuredItems.includes(itemInInventory._id)) {
-				Mod.handleEquippedGuns(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, database, returnToDeleteWeap)
+				const tempObject = Mod.handleEquippedGuns(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, database, returnObj)
+				
+				returnObj.DeleteItem.push(...tempObject.DeleteItem);
+				returnObj.DeleteInsurance.push(...tempObject.DeleteInsurance);
 			}
 			
 		}
 		
-		return returnToDeleteWeap;
+		return returnObj;
 	}
 	
 	static removeInsurance(insuredItemsList, itemsToRemove)

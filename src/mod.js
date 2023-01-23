@@ -247,6 +247,11 @@ class Mod {
 			// also skip insured items
 			if (!itemInInventory.slotId.includes("SpecialSlot")) {
 				
+				// add equipped insured items to an insurance delete array
+				if (insuredItems.includes(itemInInventory._id)) {
+					returnObj.DeleteInsurance.push(itemInInventory._id);
+				}
+				
 				if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id)) {
 					returnObj.DeleteItem.push(itemInInventory._id);
 				} else if (dbParentIdsToCheck.includes(database.templates.items[itemInInventory._tpl]._parent)) {
@@ -272,6 +277,11 @@ class Mod {
 			// skip if its ammo, we want to keep it
 			if (database.templates.items[itemInInventory._tpl]._parent === "5485a8684bdc2da71d8b4567") {
 				continue;
+			}
+			
+			// add to insured array if insured
+			if (insuredItems.includes(itemInInventory._id)) {
+				returnObj.DeleteInsurance.push(itemInInventory._id);
 			}
 			
 			if (database.templates.items[item._tpl]._props.Slots.length != 0) {

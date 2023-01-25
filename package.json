@@ -2,7 +2,7 @@
     "name": "Insurance+",
     "author": "JustNU",
     "version": "1.0.1",
-    "license": "MIT",
+    "license": "Unlicense",
     "main": "src/mod.js",
 	"akiVersion": "3.4.*"
 }

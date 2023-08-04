@@ -63,22 +63,26 @@ class Mod {
 		inraidController.healthHelper.saveVitality(pmcData, offraidData.health, sessionID);
 
 		// remove inventory if player died and send insurance items
-		if (isDead)
-		{
+		if (isDead) {
+			inraidController.pmcChatResponseService.sendKillerResponse(sessionID, pmcData, offraidData.profile.Stats.Aggressor);
+            inraidController.matchBotDetailsCacheService.clearCache();
+			
 			pmcData = Mod.customPostDeath(offraidData, pmcData, insuranceEnabled, preRaidGear, sessionID);
 		}
+		
+		const victims = offraidData.profile.Stats.Victims.filter(x => x.Role === "sptBear" || x.Role === "sptUsec");
+        if (victims?.length > 0) {
+            inraidController.pmcChatResponseService.sendVictimResponse(sessionID, victims, pmcData);
+        }
 		
 		// save post raid gear after you're done with deleting non insured items
 		const postRaidGear = pmcData.Inventory.items;
 		
-		if (insuranceEnabled)
-		{
+		if (insuranceEnabled) {
 			Mod.customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID);
-		}
-
-		if (insuranceEnabled)
-		{
 			inraidController.insuranceService.sendInsuredItems(pmcData, sessionID, map.Id);
+		} else {
+			inraidController.insuranceService.sendLostInsuranceMessage(sessionID);
 		}
 	}
 	
@@ -87,25 +91,20 @@ class Mod {
 		// resolve og container
 		const inraidController = Mod.container.resolve("InraidController");
 		
-		inraidController.updatePmcHealthPostRaid(postRaidSaveRequest, pmcData);
-
-		// since you don't lose anything, we don't need this anymore
-		/*
-		if (insuranceEnabled)
-		{
-			this.insuranceService.storeInsuredItemsForReturn(pmcData, postRaidSaveRequest, preRaidGear, sessionID);
-		}
-		*/
-		
+		inraidController.updatePmcHealthPostRaid(postRaidSaveRequest, pmcData);		
 		pmcData = Mod.customDeleteInv(pmcData, sessionID);
 
-		for (const questItem of postRaidSaveRequest.profile.Stats.CarriedQuestItems)
-		{
-			const findItemConditionId = inraidController.questHelper.getFindItemIdForQuestHandIn(questItem);
-			inraidController.profileHelper.resetProfileQuestCondition(sessionID, findItemConditionId);
-		}
+		// Remove quest items
+        if (inraidController.inRaidHelper.removeQuestItemsOnDeath())
+        {
+            for (const questItem of postRaidSaveRequest.profile.Stats.CarriedQuestItems)
+            {
+                const findItemConditionIds = inraidController.questHelper.getFindItemIdForQuestHandIn(questItem);
+                inraidController.profileHelper.resetProfileQuestCondition(sessionID, findItemConditionIds);
+            }
 
-		pmcData.Stats.CarriedQuestItems = [];
+            pmcData.Stats.CarriedQuestItems = [];
+        }
 
 		return pmcData;
 	}
@@ -154,23 +153,23 @@ class Mod {
 				}
 				
 				// push uninsured item to delete array
-				if (!inRaidHelper.isItemKeptAfterDeath(item.slotId) && !insuredItems.includes(item._id) || item.parentId === pmcData.Inventory.questRaidItems) {
+				if (!inRaidHelper.isItemKeptAfterDeath(pmcData, item) && !insuredItems.includes(item._id) || item.parentId === pmcData.Inventory.questRaidItems) {
 					deleteObj.DeleteItem.push(item._id);
 				}
 				
 				// handle them pockets
-				if (item.slotId === "Pockets" ) {
-					deleteObj = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj)
+				if (item.slotId.startsWith("pocket")) {
+					deleteObj = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj);
 				}
 				
 				// Remove items inside gear items
-				if (item.slotId != "hideout" && item.slotId != "FirstPrimaryWeapon" && item.slotId != "SecondPrimaryWeapon" && item.slotId != "Holster" && !inRaidHelper.isItemKeptAfterDeath(item.slotId)) {
-					deleteObj = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj)
+				if (item.slotId != "hideout" && item.slotId != "FirstPrimaryWeapon" && item.slotId != "SecondPrimaryWeapon" && item.slotId != "Holster" && !inRaidHelper.isItemKeptAfterDeath(pmcData, item)) {
+					deleteObj = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj);
 				}
 				
 				// handle equipped guns, since we don't want want them becoming unoperable in player hands
 				if (item.slotId === "FirstPrimaryWeapon" || item.slotId === "SecondPrimaryWeapon" || item.slotId === "Holster") {
-					deleteObj = Mod.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj)
+					deleteObj = Mod.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj);
 				}
 			}
 		}

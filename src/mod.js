@@ -34,13 +34,13 @@ class Mod {
 		}
 	}
 	
-	static customSavePmc(sessionID, offraidData)
-	{
+	static customSavePmc(sessionID, offraidData) {
 		// resolve original container
 		const inraidController = Mod.container.resolve("InraidController");
 		
 		const currentProfile = inraidController.saveServer.getProfile(sessionID);
 		const locationName = currentProfile.inraid.location.toLowerCase();
+		const config = require("../config/config.json");
 
 		const map = inraidController.databaseServer.getTables().locations[locationName].base;
 		const insuranceEnabled = map.Insurance;
@@ -78,16 +78,18 @@ class Mod {
 		// save post raid gear after you're done with deleting non insured items
 		const postRaidGear = pmcData.Inventory.items;
 		
-		if (insuranceEnabled) {
-			Mod.customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID);
-			inraidController.insuranceService.sendInsuredItems(pmcData, sessionID, map.Id);
-		} else {
-			inraidController.insuranceService.sendLostInsuranceMessage(sessionID);
+		
+		if (config.EnableDefaultInsurance) {
+			if (insuranceEnabled) {
+				Mod.customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID);
+				inraidController.insuranceService.sendInsuredItems(pmcData, sessionID, map.Id);
+			} else {
+				inraidController.insuranceService.sendLostInsuranceMessage(sessionID);
+			}
 		}
 	}
 	
-	static customPostDeath(postRaidSaveRequest, pmcData, insuranceEnabled, preRaidGear, sessionID) 
-	{
+	static customPostDeath(postRaidSaveRequest, pmcData, insuranceEnabled, preRaidGear, sessionID) {
 		// resolve og container
 		const inraidController = Mod.container.resolve("InraidController");
 		
@@ -109,10 +111,10 @@ class Mod {
 		return pmcData;
 	}
 	
-	static customDeleteInv(pmcData, sessionID) 
-	{
+	static customDeleteInv(pmcData, sessionID) {
 		// resolve required containers, yada yada
 		const inRaidHelper = Mod.container.resolve("InRaidHelper");
+		const logger = Mod.container.resolve("WinstonLogger");
 		const database = Mod.container.resolve("DatabaseServer").getTables();
 		const config = require("../config/config.json");
 		
@@ -152,14 +154,14 @@ class Mod {
 					deleteObj.DeleteInsurance.push(item._id);
 				}
 				
+				// handle them pockets
+				if (item.slotId.startsWith("Pockets")) {
+					deleteObj = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj);
+				}
+				
 				// push uninsured item to delete array
 				if (!inRaidHelper.isItemKeptAfterDeath(pmcData, item) && !insuredItems.includes(item._id) || item.parentId === pmcData.Inventory.questRaidItems) {
 					deleteObj.DeleteItem.push(item._id);
-				}
-				
-				// handle them pockets
-				if (item.slotId.startsWith("pocket")) {
-					deleteObj = Mod.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, deleteObj);
 				}
 				
 				// Remove items inside gear items
@@ -189,8 +191,7 @@ class Mod {
 		return pmcData;
 	}
 	
-	static customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID)
-	{
+	static customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID) {
 		// resolve required container, yada yada
 		const insuranceService = Mod.container.resolve("InsuranceService");
 		
@@ -230,8 +231,7 @@ class Mod {
 		}
 	}
 	
-	static handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnObj)
-	{
+	static handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnObj) {
 		for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
 			// Don't delete items in special slots
 			// also skip insured items
@@ -256,8 +256,7 @@ class Mod {
 	
 	// TO-DO
 	// this goes through bunch of useless loops, find where and remove
-	static handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnObj)
-	{
+	static handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnObj) {
 		
 		for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
 			
@@ -296,8 +295,7 @@ class Mod {
 		return returnObj;
 	}
 	
-	static removeInsurance(insuredItemsList, itemsToRemove)
-	{
+	static removeInsurance(insuredItemsList, itemsToRemove) {
 		const returnList = insuredItemsList.filter(entry => !itemsToRemove.includes(entry.itemId));
 		
 		return returnList;

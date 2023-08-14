@@ -81,7 +81,7 @@ class Mod {
 		
 		if (config.EnableDefaultInsurance) {
 			if (insuranceEnabled) {
-				Mod.customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID);
+				Mod.customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, isDead, offraidData);
 				inraidController.insuranceService.sendInsuredItems(pmcData, sessionID, map.Id);
 			} else {
 				inraidController.insuranceService.sendLostInsuranceMessage(sessionID);
@@ -97,10 +97,8 @@ class Mod {
 		pmcData = Mod.customDeleteInv(pmcData, sessionID);
 
 		// Remove quest items
-        if (inraidController.inRaidHelper.removeQuestItemsOnDeath())
-        {
-            for (const questItem of postRaidSaveRequest.profile.Stats.CarriedQuestItems)
-            {
+        if (inraidController.inRaidHelper.removeQuestItemsOnDeath()) {
+            for (const questItem of postRaidSaveRequest.profile.Stats.CarriedQuestItems) {
                 const findItemConditionIds = inraidController.questHelper.getFindItemIdForQuestHandIn(questItem);
                 inraidController.profileHelper.resetProfileQuestCondition(sessionID, findItemConditionIds);
             }
@@ -191,43 +189,47 @@ class Mod {
 		return pmcData;
 	}
 	
-	static customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID) {
+	static customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, playerDied, offraidData) {
 		// resolve required container, yada yada
 		const insuranceService = Mod.container.resolve("InsuranceService");
 		
-		const preRaidGearHash = {};
-		const offRaidGearHash = {};
-		const gears = [];
-
-		// Build a hash table to reduce loops
-		for (const item of preRaidGear) {
-			preRaidGearHash[item._id] = item;
-		}
-
-		// Build a hash of offRaidGear
-		for (const item of postRaidGear) {
-			offRaidGearHash[item._id] = item;
-		}
+		const preRaidGearHash = insuranceService.createItemHashTable(preRaidGear);
+		const offRaidGearHash = insuranceService.createItemHashTable(postRaidGear);
+		
+		const equipmentToSendToPlayer = [];
 
 		for (const insuredItem of preRaidInsuredItems) {
+			
+			// Skip insured items not on player when they started raid
+            const preRaidItem = preRaidGearHash[insuredItem.itemId];
+            if (!preRaidItem)
+            {
+                continue;
+            }
+			
+			// Skip items we should never return
+            if (insuranceService.insuranceConfig.blacklistedEquipment.includes(preRaidItem.slotId))
+            {
+                continue;
+            }
 			
 			if (preRaidGearHash[insuredItem.itemId]) {
 				// This item exists in preRaidGear, meaning we brought it into the raid...
 				// Check if we brought it out of the raid
-				if (!offRaidGearHash[insuredItem.itemId]) {
+				if (!offRaidGearHash[insuredItem.itemId] || playerDied) {
 					// We didn't bring this item out! We must've lost it.
-					gears.push({
-						"pmcData": pmcData,
-						"insuredItem": insuredItem,
-						"item": preRaidGearHash[insuredItem.itemId],
-						"sessionID": sessionID
+					equipmentToSendToPlayer.push({
+						pmcData: pmcData,
+						itemToReturnToPlayer: insuranceService.getInsuredItemDetails(pmcData, preRaidItem, offraidData.insurance?.find(x => x.id === insuredItem.itemId)),
+						traderId: insuredItem.tid,
+						sessionID: sessionID
 					});
 				}
 			}
 		}
 
-		for (const gear of gears) {
-			insuranceService.addGearToSend(gear.pmcData, gear.insuredItem, gear.item, gear.sessionID);
+		for (const gear of equipmentToSendToPlayer) {
+			insuranceService.addGearToSend(gear);
 		}
 	}
 	
@@ -257,8 +259,11 @@ class Mod {
 	// TO-DO
 	// this goes through bunch of useless loops, find where and remove
 	static handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, database, returnObj) {
+		const logger = Mod.container.resolve("WinstonLogger");
 		
 		for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
+			
+			
 			
 			// skip if its ammo, we want to keep it
 			if (database.templates.items[itemInInventory._tpl]._parent === "5485a8684bdc2da71d8b4567") {

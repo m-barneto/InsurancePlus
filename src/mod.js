@@ -216,7 +216,7 @@ class Mod {
 			if (preRaidGearHash[insuredItem.itemId]) {
 				// This item exists in preRaidGear, meaning we brought it into the raid...
 				// Check if we brought it out of the raid
-				if (!offRaidGearHash[insuredItem.itemId] || playerDied) {
+				if (!offRaidGearHash[insuredItem.itemId] /*|| playerDied*/) {
 					// We didn't bring this item out! We must've lost it.
 					equipmentToSendToPlayer.push({
 						pmcData: pmcData,

@@ -38,51 +38,62 @@ class Mod {
 		// resolve original container
 		const inraidController = Mod.container.resolve("InraidController");
 		
-		const currentProfile = inraidController.saveServer.getProfile(sessionID);
-		const locationName = currentProfile.inraid.location.toLowerCase();
+		const preRaidProfile = inraidController.saveServer.getProfile(sessionID);
+		const locationName = preRaidProfile.inraid.location.toLowerCase();
 		const config = require("../config/config.json");
 
 		const map = inraidController.databaseServer.getTables().locations[locationName].base;
-		const insuranceEnabled = map.Insurance;
-		let pmcData = currentProfile.characters.pmc;
+		const mapHasInsuranceEnabled = map.Insurance;
+		let preRaidPmcData = preRaidProfile.characters.pmc
 		const isDead = inraidController.isPlayerDead(offraidData.exit);
-		const preRaidGear = inraidController.inRaidHelper.getPlayerGear(pmcData.Inventory.items);
-		const preRaidInsuredItems = JSON.parse(JSON.stringify(pmcData.InsuredItems));
+		const preRaidGear = inraidController.inRaidHelper.getPlayerGear(preRaidPmcData.Inventory.items);
+		const preRaidInsuredItems = JSON.parse(JSON.stringify(preRaidPmcData.InsuredItems));
 
-		currentProfile.inraid.character = "pmc";
+		preRaidProfile.inraid.character = "pmc";
 
-		pmcData = inraidController.inRaidHelper.updateProfileBaseStats(pmcData, offraidData, sessionID);
+		preRaidPmcData = inraidController.inRaidHelper.updateProfileBaseStats(preRaidPmcData, offraidData, sessionID);
 
 		// Check for exit status
-		inraidController.markOrRemoveFoundInRaidItems(offraidData, pmcData, false);
+		inraidController.markOrRemoveFoundInRaidItems(offraidData);
 
-		offraidData.profile.Inventory.items = inraidController.itemHelper.replaceIDs(offraidData.profile, offraidData.profile.Inventory.items, pmcData.InsuredItems, offraidData.profile.Inventory.fastPanel);
+		offraidData.profile.Inventory.items = inraidController.itemHelper.replaceIDs(offraidData.profile, offraidData.profile.Inventory.items, preRaidPmcData.InsuredItems, offraidData.profile.Inventory.fastPanel);
 		inraidController.inRaidHelper.addUpdToMoneyFromRaid(offraidData.profile.Inventory.items);
 
-		pmcData = inraidController.inRaidHelper.setInventory(sessionID, pmcData, offraidData.profile);
-		inraidController.healthHelper.saveVitality(pmcData, offraidData.health, sessionID);
+		preRaidPmcData = inraidController.inRaidHelper.setInventory(sessionID, preRaidPmcData, offraidData.profile);
+		inraidController.healthHelper.saveVitality(preRaidPmcData, offraidData.health, sessionID);
+		
+		// Edge case - Handle usec players leaving lighthouse with Rogues angry at them
+        if (locationName === "lighthouse" && offraidData.profile.Info.Side.toLowerCase() === "usec")
+        {
+            // Decrement counter if it exists, don't go below 0
+            const remainingCounter = preRaidPmcData?.Stats.Eft.OverallCounters.Items.find(x => x.Key.includes("UsecRaidRemainKills"));
+            if (remainingCounter?.Value > 0)
+            {
+                remainingCounter.Value --;
+            }
+        }
 
 		// remove inventory if player died and send insurance items
 		if (isDead) {
-			inraidController.pmcChatResponseService.sendKillerResponse(sessionID, pmcData, offraidData.profile.Stats.Aggressor);
+			inraidController.pmcChatResponseService.sendKillerResponse(sessionID, preRaidPmcData, offraidData.profile.Stats.Eft.Aggressor);
             inraidController.matchBotDetailsCacheService.clearCache();
 			
-			pmcData = Mod.customPostDeath(offraidData, pmcData, insuranceEnabled, preRaidGear, sessionID);
+			preRaidPmcData = Mod.customPostDeath(offraidData, preRaidPmcData, mapHasInsuranceEnabled, preRaidGear, sessionID);
 		}
 		
-		const victims = offraidData.profile.Stats.Victims.filter(x => x.Role === "sptBear" || x.Role === "sptUsec");
+		const victims = offraidData.profile.Stats.Eft.Victims.filter(x => x.Role === "sptBear" || x.Role === "sptUsec");
         if (victims?.length > 0) {
-            inraidController.pmcChatResponseService.sendVictimResponse(sessionID, victims, pmcData);
+            inraidController.pmcChatResponseService.sendVictimResponse(sessionID, victims, preRaidPmcData);
         }
 		
 		// save post raid gear after you're done with deleting non insured items
-		const postRaidGear = pmcData.Inventory.items;
+		const postRaidGear = preRaidPmcData.Inventory.items;
 		
 		
 		if (config.EnableDefaultInsurance) {
-			if (insuranceEnabled) {
-				Mod.customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, isDead, offraidData);
-				inraidController.insuranceService.sendInsuredItems(pmcData, sessionID, map.Id);
+			if (mapHasInsuranceEnabled) {
+				Mod.customStoreLostGear(preRaidPmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, isDead, offraidData);
+				inraidController.insuranceService.sendInsuredItems(preRaidPmcData, sessionID, map.Id);
 			} else {
 				inraidController.insuranceService.sendLostInsuranceMessage(sessionID);
 			}
@@ -92,19 +103,30 @@ class Mod {
 	static customPostDeath(postRaidSaveRequest, pmcData, insuranceEnabled, preRaidGear, sessionID) {
 		// resolve og container
 		const inraidController = Mod.container.resolve("InraidController");
+		const QuestStatus = require("C:/snapshot/project/obj/models/enums/QuestStatus");
 		
 		inraidController.updatePmcHealthPostRaid(postRaidSaveRequest, pmcData);		
 		pmcData = Mod.customDeleteInv(pmcData, sessionID);
 
 		// Remove quest items
         if (inraidController.inRaidHelper.removeQuestItemsOnDeath()) {
-            for (const questItem of postRaidSaveRequest.profile.Stats.CarriedQuestItems) {
-                const findItemConditionIds = inraidController.questHelper.getFindItemIdForQuestHandIn(questItem);
-                inraidController.profileHelper.resetProfileQuestCondition(sessionID, findItemConditionIds);
+            // Find and remove the completed condition from profile if player died, otherwise quest is stuck in limbo and quest items cannot be picked up again
+            const allQuests = inraidController.questHelper.getQuestsFromDb();
+            const activeQuestIdsInProfile = pmcData.Quests.filter(x => ![QuestStatus.AvailableForStart, QuestStatus.Success, QuestStatus.Expired].includes(x.status)).map(x => x.qid);
+            for (const questItem of postRaidSaveRequest.profile.Stats.Eft.CarriedQuestItems)
+            {
+                // Get quest/find condition for carried quest item
+                const questAndFindItemConditionId = inraidController.questHelper.getFindItemConditionByQuestItem(questItem, activeQuestIdsInProfile, allQuests);
+                if (questAndFindItemConditionId)
+                {
+                    inraidController.profileHelper.removeCompletedQuestConditionFromProfile(pmcData, questAndFindItemConditionId);
+                }
             }
 
-            pmcData.Stats.CarriedQuestItems = [];
+            // Empty out stored quest items from player inventory
+            pmcData.Stats.Eft.CarriedQuestItems = [];
         }
+
 
 		return pmcData;
 	}

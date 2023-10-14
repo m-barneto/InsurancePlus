@@ -10,8 +10,8 @@ class Mod {
 		
 		// do the good old swaperoo
 		container.afterResolution("InraidController", (_t, result) => {
-			result.savePmcProgress = (sessionID, offraidData) => {
-				return Mod.customSavePmc(sessionID, offraidData)
+			result.savePmcProgress = (sessionID, postRaidRequest) => {
+				return Mod.customSavePmc(sessionID, postRaidRequest)
 			}
 		}, {frequency: "Always"});
 	}
@@ -34,39 +34,42 @@ class Mod {
 		}
 	}
 	
-	static customSavePmc(sessionID, offraidData) {
+	static customSavePmc(sessionID, postRaidRequest) {
 		// resolve original container
 		const inraidController = Mod.container.resolve("InraidController");
 		
-		const preRaidProfile = inraidController.saveServer.getProfile(sessionID);
-		const locationName = preRaidProfile.inraid.location.toLowerCase();
+		const serverProfile = inraidController.saveServer.getProfile(sessionID);
+		const locationName = serverProfile.inraid.location.toLowerCase();
 		const config = require("../config/config.json");
 
 		const map = inraidController.databaseServer.getTables().locations[locationName].base;
 		const mapHasInsuranceEnabled = map.Insurance;
-		let preRaidPmcData = preRaidProfile.characters.pmc
-		const isDead = inraidController.isPlayerDead(offraidData.exit);
-		const preRaidGear = inraidController.inRaidHelper.getPlayerGear(preRaidPmcData.Inventory.items);
-		const preRaidInsuredItems = JSON.parse(JSON.stringify(preRaidPmcData.InsuredItems));
 
-		preRaidProfile.inraid.character = "pmc";
+		let serverPmcData = serverProfile.characters.pmc
+		const isDead = inraidController.isPlayerDead(postRaidRequest.exit);
+		const preRaidGear = inraidController.inRaidHelper.getPlayerGear(serverPmcData.Inventory.items);
+		const preRaidInsuredItems = JSON.parse(JSON.stringify(serverPmcData.InsuredItems));
 
-		preRaidPmcData = inraidController.inRaidHelper.updateProfileBaseStats(preRaidPmcData, offraidData, sessionID);
+		serverProfile.inraid.character = "pmc";
+
+		serverPmcData = inraidController.inRaidHelper.updateProfileBaseStats(serverPmcData, postRaidRequest, sessionID);
 
 		// Check for exit status
-		inraidController.markOrRemoveFoundInRaidItems(offraidData);
+		inraidController.markOrRemoveFoundInRaidItems(postRaidRequest);
 
-		offraidData.profile.Inventory.items = inraidController.itemHelper.replaceIDs(offraidData.profile, offraidData.profile.Inventory.items, preRaidPmcData.InsuredItems, offraidData.profile.Inventory.fastPanel);
-		inraidController.inRaidHelper.addUpdToMoneyFromRaid(offraidData.profile.Inventory.items);
+		postRaidRequest.profile.Inventory.items = inraidController.itemHelper.replaceIDs(postRaidRequest.profile, postRaidRequest.profile.Inventory.items, serverPmcData.InsuredItems, postRaidRequest.profile.Inventory.fastPanel);
+		inraidController.inRaidHelper.addUpdToMoneyFromRaid(postRaidRequest.profile.Inventory.items);
 
-		preRaidPmcData = inraidController.inRaidHelper.setInventory(sessionID, preRaidPmcData, offraidData.profile);
-		inraidController.healthHelper.saveVitality(preRaidPmcData, offraidData.health, sessionID);
+		// Purge profile of equipment/container items
+		serverPmcData = inraidController.inRaidHelper.setInventory(sessionID, serverPmcData, postRaidRequest.profile);
+		
+		inraidController.healthHelper.saveVitality(serverPmcData, postRaidRequest.health, sessionID);
 		
 		// Edge case - Handle usec players leaving lighthouse with Rogues angry at them
-        if (locationName === "lighthouse" && offraidData.profile.Info.Side.toLowerCase() === "usec")
+        if (locationName === "lighthouse" && postRaidRequest.profile.Info.Side.toLowerCase() === "usec")
         {
             // Decrement counter if it exists, don't go below 0
-            const remainingCounter = preRaidPmcData?.Stats.Eft.OverallCounters.Items.find(x => x.Key.includes("UsecRaidRemainKills"));
+            const remainingCounter = serverPmcData?.Stats.Eft.OverallCounters.Items.find(x => x.Key.includes("UsecRaidRemainKills"));
             if (remainingCounter?.Value > 0)
             {
                 remainingCounter.Value --;
@@ -75,25 +78,25 @@ class Mod {
 
 		// remove inventory if player died and send insurance items
 		if (isDead) {
-			inraidController.pmcChatResponseService.sendKillerResponse(sessionID, preRaidPmcData, offraidData.profile.Stats.Eft.Aggressor);
+			inraidController.pmcChatResponseService.sendKillerResponse(sessionID, serverPmcData, postRaidRequest.profile.Stats.Eft.Aggressor);
             inraidController.matchBotDetailsCacheService.clearCache();
 			
-			preRaidPmcData = Mod.customPostDeath(offraidData, preRaidPmcData, mapHasInsuranceEnabled, preRaidGear, sessionID);
+			serverPmcData = Mod.customPostDeath(postRaidRequest, serverPmcData, mapHasInsuranceEnabled, preRaidGear, sessionID);
 		}
 		
-		const victims = offraidData.profile.Stats.Eft.Victims.filter(x => x.Role === "sptBear" || x.Role === "sptUsec");
+		const victims = postRaidRequest.profile.Stats.Eft.Victims.filter(x => ["sptbear", "sptusec"].includes(x.Role.toLowerCase()));
         if (victims?.length > 0) {
-            inraidController.pmcChatResponseService.sendVictimResponse(sessionID, victims, preRaidPmcData);
+            inraidController.pmcChatResponseService.sendVictimResponse(sessionID, victims, serverPmcData);
         }
 		
 		// save post raid gear after you're done with deleting non insured items
-		const postRaidGear = preRaidPmcData.Inventory.items;
+		const postRaidGear = serverPmcData.Inventory.items;
 		
 		
 		if (config.EnableDefaultInsurance) {
 			if (mapHasInsuranceEnabled) {
-				Mod.customStoreLostGear(preRaidPmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, isDead, offraidData);
-				inraidController.insuranceService.sendInsuredItems(preRaidPmcData, sessionID, map.Id);
+				Mod.customStoreLostGear(serverPmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, isDead, postRaidRequest);
+				inraidController.insuranceService.sendInsuredItems(serverPmcData, sessionID, map.Id);
 			} else {
 				inraidController.insuranceService.sendLostInsuranceMessage(sessionID);
 			}
@@ -211,7 +214,7 @@ class Mod {
 		return pmcData;
 	}
 	
-	static customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, playerDied, offraidData) {
+	static customStoreLostGear(pmcData, postRaidGear, preRaidGear, preRaidInsuredItems, sessionID, playerDied, postRaidRequest) {
 		// resolve required container, yada yada
 		const insuranceService = Mod.container.resolve("InsuranceService");
 		
@@ -242,7 +245,7 @@ class Mod {
 					// We didn't bring this item out! We must've lost it.
 					equipmentToSendToPlayer.push({
 						pmcData: pmcData,
-						itemToReturnToPlayer: insuranceService.getInsuredItemDetails(pmcData, preRaidItem, offraidData.insurance?.find(x => x.id === insuredItem.itemId)),
+						itemToReturnToPlayer: insuranceService.getInsuredItemDetails(pmcData, preRaidItem, postRaidRequest.insurance?.find(x => x.id === insuredItem.itemId)),
 						traderId: insuredItem.tid,
 						sessionID: sessionID
 					});

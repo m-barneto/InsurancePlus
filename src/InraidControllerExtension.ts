@@ -133,8 +133,8 @@ export class InraidControllerExtension extends InraidController {
             false
         );
 
-        if (gearToStore.length > 0 && this.config.AllowInsuranceFraud) {
-            // Check if insurance fraud in allowed...
+        // Check if insurance fraud is allowed
+        if (gearToStore.length > 0 && this.config.EnableDefaultInsurance) {
             this.insuranceService.storeGearLostInRaidToSendLater(sessionID, gearToStore);
         }
 

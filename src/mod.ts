@@ -7,7 +7,6 @@ class Mod implements IPreSptLoadMod {
 
     preSptLoad(container: DependencyContainer): void {
         const logger = container.resolve<ILogger>("WinstonLogger");
-        logger.info("PreSPTLoad!");
         container.register<InraidControllerExtension>("InraidControllerExtension", InraidControllerExtension);
         container.register("InraidController", { useToken: "InraidControllerExtension" });
     }

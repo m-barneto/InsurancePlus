@@ -313,13 +313,12 @@ export class InraidControllerExtension extends InraidController {
             // Don't delete items in special slots
             // also skip insured items
             if (!itemInInventory.slotId.includes("SpecialSlot")) {
-				
                 // add equipped insured items to an insurance delete array
                 if (insuredItems.includes(itemInInventory._id)) {
                     returnObj.DeleteInsurance.push(itemInInventory._id);
                 }
 				
-                if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id)) {
+                if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && !this.isRequiredArmorPlate(itemInInventory, item)) {
                     returnObj.DeleteItem.push(itemInInventory._id);
                 } else if (dbParentIdsToCheck.includes(this.databaseService.getTemplates().items[itemInInventory._tpl]._parent)) {
                     returnObj = this.handleInventoryItems(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, returnObj)
@@ -371,5 +370,20 @@ export class InraidControllerExtension extends InraidController {
         const returnList = insuredItemsList.filter(entry => !itemsToRemove.includes(entry.itemId));
 		
         return returnList;
+    }
+
+    private isRequiredArmorPlate(item: Item, parent: Item): boolean {
+        if (!item.slotId) return false;
+
+        const itemTemplates = this.databaseService.getTables().templates.items;
+
+        const parentTemplate = itemTemplates[parent._tpl];
+
+        // Check to see if the slot that the item is attached to is marked as required in the parent item's template.
+        let isRequiredSlot = false;
+        if (parentTemplate && parentTemplate._props?.Slots) {
+            isRequiredSlot = parentTemplate._props.Slots.some(slot => slot._name === item.slotId && slot._required);
+        }
+        return isRequiredSlot;
     }
 }

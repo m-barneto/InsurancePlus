@@ -1,8 +1,7 @@
-import { HttpServerHelper } from "@spt/helpers/HttpServerHelper";
-import { BundleHashCacheService } from "@spt/services/cache/BundleHashCacheService";
-import { ICloner } from "@spt/utils/cloners/ICloner";
-import { JsonUtil } from "@spt/utils/JsonUtil";
-import { VFS } from "@spt/utils/VFS";
+import { HttpServerHelper } from "@spt-aki/helpers/HttpServerHelper";
+import { BundleHashCacheService } from "@spt-aki/services/cache/BundleHashCacheService";
+import { JsonUtil } from "@spt-aki/utils/JsonUtil";
+import { VFS } from "@spt-aki/utils/VFS";
 export declare class BundleInfo {
     modpath: string;
     filename: string;
@@ -15,9 +14,8 @@ export declare class BundleLoader {
     protected vfs: VFS;
     protected jsonUtil: JsonUtil;
     protected bundleHashCacheService: BundleHashCacheService;
-    protected cloner: ICloner;
     protected bundles: Record<string, BundleInfo>;
-    constructor(httpServerHelper: HttpServerHelper, vfs: VFS, jsonUtil: JsonUtil, bundleHashCacheService: BundleHashCacheService, cloner: ICloner);
+    constructor(httpServerHelper: HttpServerHelper, vfs: VFS, jsonUtil: JsonUtil, bundleHashCacheService: BundleHashCacheService);
     /**
      * Handle singleplayer/bundles
      */

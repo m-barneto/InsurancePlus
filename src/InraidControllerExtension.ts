@@ -1,33 +1,32 @@
-import { ApplicationContext } from "@spt/context/ApplicationContext";
-import { InraidController } from "@spt/controllers/InraidController";
-import { PlayerScavGenerator } from "@spt/generators/PlayerScavGenerator";
-import { HealthHelper } from "@spt/helpers/HealthHelper";
-import { InRaidHelper } from "@spt/helpers/InRaidHelper";
-import { ItemHelper } from "@spt/helpers/ItemHelper";
-import { NotificationSendHelper } from "@spt/helpers/NotificationSendHelper";
-import { ProfileHelper } from "@spt/helpers/ProfileHelper";
-import { QuestHelper } from "@spt/helpers/QuestHelper";
-import { TraderHelper } from "@spt/helpers/TraderHelper";
-import { ILocationBase } from "@spt/models/eft/common/ILocationBase";
-import { IPmcData } from "@spt/models/eft/common/IPmcData";
-import { InsuredItem } from "@spt/models/eft/common/tables/IBotBase";
-import { Item } from "@spt/models/eft/common/tables/IItem";
-import { ISaveProgressRequestData } from "@spt/models/eft/inRaid/ISaveProgressRequestData";
-import { ItemTpl } from "@spt/models/enums/ItemTpl";
-import { QuestStatus } from "@spt/models/enums/QuestStatus";
-import { ILogger } from "@spt/models/spt/utils/ILogger";
-import { ConfigServer } from "@spt/servers/ConfigServer";
-import { SaveServer } from "@spt/servers/SaveServer";
-import { DatabaseService } from "@spt/services/DatabaseService";
-import { InsuranceService } from "@spt/services/InsuranceService";
-import { LocalisationService } from "@spt/services/LocalisationService";
-import { MailSendService } from "@spt/services/MailSendService";
-import { MatchBotDetailsCacheService } from "@spt/services/MatchBotDetailsCacheService";
-import { PmcChatResponseService } from "@spt/services/PmcChatResponseService";
-import { TraderServicesService } from "@spt/services/TraderServicesService";
-import { JsonUtil } from "@spt/utils/JsonUtil";
-import { RandomUtil } from "@spt/utils/RandomUtil";
-import { TimeUtil } from "@spt/utils/TimeUtil";
+import { ApplicationContext } from "@spt-aki/context/ApplicationContext";
+import { InraidController } from "@spt-aki/controllers/InraidController";
+import { PlayerScavGenerator } from "@spt-aki/generators/PlayerScavGenerator";
+import { HealthHelper } from "@spt-aki/helpers/HealthHelper";
+import { InRaidHelper } from "@spt-aki/helpers/InRaidHelper";
+import { ItemHelper } from "@spt-aki/helpers/ItemHelper";
+import { NotificationSendHelper } from "@spt-aki/helpers/NotificationSendHelper";
+import { ProfileHelper } from "@spt-aki/helpers/ProfileHelper";
+import { QuestHelper } from "@spt-aki/helpers/QuestHelper";
+import { TraderHelper } from "@spt-aki/helpers/TraderHelper";
+import { ILocationBase } from "@spt-aki/models/eft/common/ILocationBase";
+import { IPmcData } from "@spt-aki/models/eft/common/IPmcData";
+import { InsuredItem } from "@spt-aki/models/eft/common/tables/IBotBase";
+import { Item } from "@spt-aki/models/eft/common/tables/IItem";
+import { ISaveProgressRequestData } from "@spt-aki/models/eft/inRaid/ISaveProgressRequestData";
+import { QuestStatus } from "@spt-aki/models/enums/QuestStatus";
+import { ILogger } from "@spt-aki/models/spt/utils/ILogger";
+import { ConfigServer } from "@spt-aki/servers/ConfigServer";
+import { DatabaseServer } from "@spt-aki/servers/DatabaseServer";
+import { SaveServer } from "@spt-aki/servers/SaveServer";
+import { InsuranceService } from "@spt-aki/services/InsuranceService";
+import { LocalisationService } from "@spt-aki/services/LocalisationService";
+import { MailSendService } from "@spt-aki/services/MailSendService";
+import { MatchBotDetailsCacheService } from "@spt-aki/services/MatchBotDetailsCacheService";
+import { PmcChatResponseService } from "@spt-aki/services/PmcChatResponseService";
+import { TraderServicesService } from "@spt-aki/services/TraderServicesService";
+import { JsonUtil } from "@spt-aki/utils/JsonUtil";
+import { RandomUtil } from "@spt-aki/utils/RandomUtil";
+import { TimeUtil } from "@spt-aki/utils/TimeUtil";
 import { inject, injectable } from "tsyringe";
 
 
@@ -40,30 +39,30 @@ export class InraidControllerExtension extends InraidController {
         @inject("SaveServer") protected saveServer: SaveServer,
         @inject("JsonUtil") protected jsonUtil: JsonUtil,
         @inject("TimeUtil") protected timeUtil: TimeUtil,
-        @inject("DatabaseService") protected databaseService: DatabaseService,
-        @inject("TraderServicesService") protected traderServicesService: TraderServicesService, 
-        @inject("LocalisationService") protected localisationService: LocalisationService,
+        @inject("DatabaseServer") protected databaseServer: DatabaseServer,
         @inject("PmcChatResponseService") protected pmcChatResponseService: PmcChatResponseService,
         @inject("MatchBotDetailsCacheService") protected matchBotDetailsCacheService: MatchBotDetailsCacheService,
         @inject("QuestHelper") protected questHelper: QuestHelper,
         @inject("ItemHelper") protected itemHelper: ItemHelper,
         @inject("ProfileHelper") protected profileHelper: ProfileHelper,
         @inject("PlayerScavGenerator") protected playerScavGenerator: PlayerScavGenerator,
-        @inject("NotificationSendHelper") protected notificationSendHelper: NotificationSendHelper,
         @inject("HealthHelper") protected healthHelper: HealthHelper,
         @inject("TraderHelper") protected traderHelper: TraderHelper,
+        @inject("TraderServicesService") protected traderServicesService: TraderServicesService,
         @inject("InsuranceService") protected insuranceService: InsuranceService,
         @inject("InRaidHelper") protected inRaidHelper: InRaidHelper,
         @inject("ApplicationContext") protected applicationContext: ApplicationContext,
         @inject("ConfigServer") protected configServer: ConfigServer,
         @inject("MailSendService") protected mailSendService: MailSendService,
-        @inject("RandomUtil") randomUtil: RandomUtil
+        @inject("RandomUtil") protected randomUtil: RandomUtil
+
     ) {
         super(
             logger,
             saveServer,
+            jsonUtil,
             timeUtil,
-            databaseService,
+            databaseServer,
             pmcChatResponseService,
             matchBotDetailsCacheService,
             questHelper,
@@ -73,7 +72,6 @@ export class InraidControllerExtension extends InraidController {
             healthHelper,
             traderHelper,
             traderServicesService,
-            localisationService,
             insuranceService,
             inRaidHelper,
             applicationContext,
@@ -88,42 +86,43 @@ export class InraidControllerExtension extends InraidController {
      * @param sessionID Session id
      * @param postRaidRequest Post-raid data
      */
-    protected override savePmcProgress(sessionID: string, postRaidRequest: ISaveProgressRequestData): void {
+    protected savePmcProgress(sessionID: string, postRaidRequest: ISaveProgressRequestData): void {
         const serverProfile = this.saveServer.getProfile(sessionID);
-
+    
         const locationName = serverProfile.inraid.location.toLowerCase();
-
-        const map: ILocationBase = this.databaseService.getLocation(locationName).base;
-
+    
+        const map: ILocationBase = this.databaseServer.getTables().locations[locationName].base;
+        const mapHasInsuranceEnabled = map.Insurance;
+    
         const serverPmcProfile = serverProfile.characters.pmc;
         const serverScavProfile = serverProfile.characters.scav;
-
+    
         const isDead = this.isPlayerDead(postRaidRequest.exit);
         const preRaidGear = this.inRaidHelper.getPlayerGear(serverPmcProfile.Inventory.items);
-
+    
         serverProfile.inraid.character = "pmc";
-
+    
         this.inRaidHelper.updateProfileBaseStats(serverPmcProfile, postRaidRequest, sessionID);
         this.inRaidHelper.updatePmcProfileDataPostRaid(serverPmcProfile, postRaidRequest, sessionID);
-
+    
         this.mergePmcAndScavEncyclopedias(serverPmcProfile, serverScavProfile);
-
+    
         // Check for exit status
         this.markOrRemoveFoundInRaidItems(postRaidRequest);
-
+    
         postRaidRequest.profile.Inventory.items = this.itemHelper.replaceIDs(
             postRaidRequest.profile.Inventory.items,
             postRaidRequest.profile,
             serverPmcProfile.InsuredItems,
             postRaidRequest.profile.Inventory.fastPanel
         );
-        this.inRaidHelper.addStackCountToMoneyFromRaid(postRaidRequest.profile.Inventory.items);
-
+        this.inRaidHelper.addUpdToMoneyFromRaid(postRaidRequest.profile.Inventory.items);
+    
         // Purge profile of equipment/container items
         this.inRaidHelper.setInventory(sessionID, serverPmcProfile, postRaidRequest.profile);
-
+    
         this.healthHelper.saveVitality(serverPmcProfile, postRaidRequest.health, sessionID);
-
+    
         // Get array of insured items+child that were lost in raid
         const gearToStore = this.insuranceService.getGearLostInRaid(
             serverPmcProfile,
@@ -132,23 +131,23 @@ export class InraidControllerExtension extends InraidController {
             sessionID,
             false
         );
-
+    
         // Check if insurance fraud is allowed
         if (gearToStore.length > 0 && this.config.EnableDefaultInsurance) {
             this.insuranceService.storeGearLostInRaidToSendLater(sessionID, gearToStore);
         }
-
+    
         // Edge case - Handle usec players leaving lighthouse with Rogues angry at them
         if (locationName === "lighthouse" && postRaidRequest.profile.Info.Side.toLowerCase() === "usec") {
             // Decrement counter if it exists, don't go below 0
-            const remainingCounter = serverPmcProfile?.Stats.Eft.OverallCounters.Items.find((x) =>
+            const remainingCounter = serverPmcProfile?.Stats.Eft.OverallCounters.Items.find(x =>
                 x.Key.includes("UsecRaidRemainKills")
             );
             if (remainingCounter?.Value > 0) {
                 remainingCounter.Value--;
             }
         }
-
+    
         if (isDead) {
             this.pmcChatResponseService.sendKillerResponse(
                 sessionID,
@@ -156,67 +155,63 @@ export class InraidControllerExtension extends InraidController {
                 postRaidRequest.profile.Stats.Eft.Aggressor
             );
             this.matchBotDetailsCacheService.clearCache();
-            
+    
             this.performPostRaidActionsWhenDead(postRaidRequest, serverPmcProfile, sessionID);
         } else {
             // Not dead
-
+    
             // Check for cultist amulets in special slot (only slot it can fit)
-            const sacredAmulet = this.itemHelper.getItemFromPoolByTpl(
-                serverPmcProfile.Inventory.items,
-                ItemTpl.CULTISTAMULET_SACRED_AMULET,
-                "SpecialSlot");
-            if (sacredAmulet) {
+            const amuletOnPlayer = serverPmcProfile.Inventory.items.filter(item =>
+                item.slotId?.startsWith("SpecialSlot")
+            ).find(item => item._tpl === "64d0b40fbe2eed70e254e2d4");
+            if (amuletOnPlayer) {
                 // No charges left, delete it
-                if (sacredAmulet.upd.CultistAmulet.NumberOfUsages <= 0) {
+                if (amuletOnPlayer.upd.CultistAmulet.NumberOfUsages <= 0) {
                     serverPmcProfile.Inventory.items.splice(
-                        serverPmcProfile.Inventory.items.indexOf(sacredAmulet),
+                        serverPmcProfile.Inventory.items.indexOf(amuletOnPlayer),
                         1
                     );
-                } else if (sacredAmulet.upd.CultistAmulet.NumberOfUsages > 0) {
+                } else if (amuletOnPlayer.upd.CultistAmulet.NumberOfUsages > 0) {
                     // Charges left, reduce by 1
-                    sacredAmulet.upd.CultistAmulet.NumberOfUsages--;
+                    amuletOnPlayer.upd.CultistAmulet.NumberOfUsages--;
                 }
             }
         }
-
-        const victims = postRaidRequest.profile.Stats.Eft.Victims.filter((victim) =>
-            ["pmcbear", "pmcusec"].includes(victim.Role.toLowerCase())
+    
+        const victims = postRaidRequest.profile.Stats.Eft.Victims.filter(x =>
+            ["sptbear", "sptusec"].includes(x.Role.toLowerCase())
         );
         if (victims?.length > 0) {
             this.pmcChatResponseService.sendVictimResponse(sessionID, victims, serverPmcProfile);
         }
-
+    
         this.insuranceService.sendInsuredItems(serverPmcProfile, sessionID, map.Id);
     }
 
-    /**
-     * Make changes to PMC profile after they've died in raid,
-     * Alter body part hp, handle insurance, delete inventory items, remove carried quest items
-     * @param postRaidSaveRequest Post-raid save request
-     * @param pmcData Pmc profile
-     * @param sessionID Session id
-     * @returns Updated profile object
-     */
-    protected override performPostRaidActionsWhenDead(postRaidSaveRequest: ISaveProgressRequestData, pmcData: IPmcData, sessionID: string): IPmcData {
+    protected override performPostRaidActionsWhenDead(
+        postRaidSaveRequest: ISaveProgressRequestData,
+        pmcData: IPmcData,
+        sessionID: string
+    ): IPmcData {
         this.updatePmcHealthPostRaid(postRaidSaveRequest, pmcData);
 
         // replaced this
         // this.inRaidHelper.deleteInventory(pmcData, sessionID);
         this.deleteInventoryWithoutInsuranceItems(pmcData, sessionID);
 
-        if (this.inRaidHelper.shouldQuestItemsBeRemovedOnDeath()) {
+        if (this.inRaidHelper.removeQuestItemsOnDeath()) {
             // Find and remove the completed condition from profile if player died, otherwise quest is stuck in limbo
             // and quest items cannot be picked up again
             const allQuests = this.questHelper.getQuestsFromDb();
             const activeQuestIdsInProfile = pmcData.Quests.filter(
-                (profileQuest) =>
-                    ![QuestStatus.AvailableForStart, QuestStatus.Success, QuestStatus.Expired].includes(
-                        profileQuest.status
-                    )
-            ).map((x) => x.qid);
+                profileQuest => ![
+                    QuestStatus.AvailableForStart,
+                    QuestStatus.Success,
+                    QuestStatus.Expired
+                ].includes(profileQuest.status)
+            ).map(x => x.qid);
             for (const questItem of postRaidSaveRequest.profile.Stats.Eft.CarriedQuestItems) {
-            // Get quest/find condition for carried quest item
+                // Get quest/find condition for carried quest item
                 const questAndFindItemConditionId = this.questHelper.getFindItemConditionByQuestItem(
                     questItem,
                     activeQuestIdsInProfile,
@@ -320,7 +315,7 @@ export class InraidControllerExtension extends InraidController {
 				
                 if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && !this.isRequiredArmorPlate(itemInInventory, item)) {
                     returnObj.DeleteItem.push(itemInInventory._id);
-                } else if (dbParentIdsToCheck.includes(this.databaseService.getTemplates().items[itemInInventory._tpl]._parent)) {
+                } else if (dbParentIdsToCheck.includes(this.databaseServer.getTables().templates.items[itemInInventory._tpl]._parent)) {
                     returnObj = this.handleInventoryItems(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, returnObj)
                 }
             }
@@ -332,7 +327,7 @@ export class InraidControllerExtension extends InraidController {
     public handleEquippedGuns(pmcData: IPmcData, item: Item, insuredItems: string[], dbParentIdsToCheck: string[], returnObj: { DeleteInsurance: string[]; DeleteItem: string[]; }): { DeleteInsurance: string[]; DeleteItem: string[]; } {
         for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
             // skip if its ammo, we want to keep it
-            if (this.databaseService.getTemplates().items[itemInInventory._tpl]._parent === "5485a8684bdc2da71d8b4567") {
+            if (this.databaseServer.getTables().templates.items[itemInInventory._tpl]._parent === "5485a8684bdc2da71d8b4567") {
                 continue;
             }
 			
@@ -341,12 +336,12 @@ export class InraidControllerExtension extends InraidController {
                 returnObj.DeleteInsurance.push(itemInInventory._id);
             }
 			
-            if (this.databaseService.getTemplates().items[item._tpl]._props.Slots.length != 0) {
-                for (const slotsIndex in this.databaseService.getTemplates().items[item._tpl]._props.Slots) {
-                    if (this.databaseService.getTemplates().items[item._tpl]._props.Slots[slotsIndex]._props.filters[0].Filter.includes(itemInInventory._tpl)) {
+            if (this.databaseServer.getTables().templates.items[item._tpl]._props.Slots.length != 0) {
+                for (const slotsIndex in this.databaseServer.getTables().templates.items[item._tpl]._props.Slots) {
+                    if (this.databaseServer.getTables().templates.items[item._tpl]._props.Slots[slotsIndex]._props.filters[0].Filter.includes(itemInInventory._tpl)) {
 						
                         // check if the item is required, like pistol grips, gasblocks, etc
-                        if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && this.databaseService.getTemplates().items[item._tpl]._props.Slots[slotsIndex]._required === false) {
+                        if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && this.databaseServer.getTables().templates.items[item._tpl]._props.Slots[slotsIndex]._required === false) {
                             returnObj.DeleteItem.push(itemInInventory._id);
                             break;
                         }
@@ -357,7 +352,7 @@ export class InraidControllerExtension extends InraidController {
             }
 			
             // if item can have slots and is insured, call this function again
-            if (this.databaseService.getTemplates().items[itemInInventory._tpl]._props.Slots.length != 0 && insuredItems.includes(itemInInventory._id)) {
+            if (this.databaseServer.getTables().templates.items[itemInInventory._tpl]._props.Slots.length != 0 && insuredItems.includes(itemInInventory._id)) {
                 returnObj = this.handleEquippedGuns(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, returnObj);
             }
 			
@@ -375,7 +370,7 @@ export class InraidControllerExtension extends InraidController {
     private isRequiredArmorPlate(item: Item, parent: Item): boolean {
         if (!item.slotId) return false;
 
-        const itemTemplates = this.databaseService.getTables().templates.items;
+        const itemTemplates = this.databaseServer.getTables().templates.items;
 
         const parentTemplate = itemTemplates[parent._tpl];
 

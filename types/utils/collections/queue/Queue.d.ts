@@ -13,9 +13,9 @@ export declare class Queue<T> {
     /**
      * Removes the first element from the queue and returns it's value. If the queue is empty, undefined is returned and the queue is not modified.
      */
-    dequeue(): T | undefined;
+    dequeue(): T;
     /**
      * Returns the first element's value.
      */
-    peek(): T | undefined;
+    peek(): T;
 }

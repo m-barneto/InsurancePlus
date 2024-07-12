@@ -1,12 +1,12 @@
 import { IParseOptions, IStringifyOptions, Reviver } from "jsonc/lib/interfaces";
-import { ILogger } from "@spt/models/spt/utils/ILogger";
-import { HashUtil } from "@spt/utils/HashUtil";
-import { VFS } from "@spt/utils/VFS";
+import { ILogger } from "@spt-aki/models/spt/utils/ILogger";
+import { HashUtil } from "@spt-aki/utils/HashUtil";
+import { VFS } from "@spt-aki/utils/VFS";
 export declare class JsonUtil {
     protected vfs: VFS;
     protected hashUtil: HashUtil;
     protected logger: ILogger;
-    protected fileHashes?: Map<string, string>;
+    protected fileHashes: any;
     protected jsonCacheExists: boolean;
     protected jsonCachePath: string;
     constructor(vfs: VFS, hashUtil: HashUtil, logger: ILogger);
@@ -32,15 +32,15 @@ export declare class JsonUtil {
      * @param options Stringify options or a replacer.
      * @returns The string converted from the JavaScript value
      */
-    serializeJsonC(data: any, filename?: string | undefined, options?: IStringifyOptions | Reviver): string | undefined;
-    serializeJson5(data: any, filename?: string | undefined, prettify?: boolean): string | undefined;
+    serializeJsonC(data: any, filename?: string | null, options?: IStringifyOptions | Reviver): string;
+    serializeJson5(data: any, filename?: string | null, prettify?: boolean): string;
     /**
      * From string to object
      * @param jsonString json string to turn into object
      * @param filename Name of file being deserialized
      * @returns object
      */
-    deserialize<T>(jsonString: string, filename?: string): T | undefined;
+    deserialize<T>(jsonString: string, filename?: string): T;
     /**
      * From string to object
      * @param jsonString json string to turn into object
@@ -48,17 +48,16 @@ export declare class JsonUtil {
      * @param options Parsing options
      * @returns object
      */
-    deserializeJsonC<T>(jsonString: string, filename?: string, options?: IParseOptions): T | undefined;
-    deserializeJson5<T>(jsonString: string, filename?: string): T | undefined;
-    deserializeWithCacheCheckAsync<T>(jsonString: string, filePath: string): Promise<T | undefined>;
+    deserializeJsonC<T>(jsonString: string, filename?: string, options?: IParseOptions): T;
+    deserializeJson5<T>(jsonString: string, filename?: string): T;
+    deserializeWithCacheCheckAsync<T>(jsonString: string, filePath: string): Promise<T>;
     /**
-     * Take json from file and convert into object
-     * Perform valadation on json during process if json file has not been processed before
+     * From json string to object
      * @param jsonString String to turn into object
      * @param filePath Path to json file being processed
      * @returns Object
      */
-    deserializeWithCacheCheck<T>(jsonString: string, filePath: string): T | undefined;
+    deserializeWithCacheCheck<T>(jsonString: string, filePath: string): T;
     /**
      * Create file if nothing found
      * @param jsonCachePath path to cache
@@ -73,7 +72,6 @@ export declare class JsonUtil {
      * Convert into string and back into object to clone object
      * @param objectToClone Item to clone
      * @returns Cloned parameter
-     * @deprecated Use ICloner implementations, such as RecursiveCloner or StructuredCloner
      */
     clone<T>(objectToClone: T): T;
 }

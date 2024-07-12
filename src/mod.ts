@@ -1,11 +1,12 @@
 import { DependencyContainer } from "tsyringe";
-import { IPreSptLoadMod } from "@spt/models/external/IPreSptLoadMod";
+import { IPreAkiLoadMod } from "@spt-aki/models/external/IPreAkiLoadMod";
+import { ILogger } from "@spt-aki/models/spt/utils/ILogger";
 import { InraidControllerExtension } from "./InraidControllerExtension";
-import { ILogger } from "@spt/models/spt/utils/ILogger";
 
-class Mod implements IPreSptLoadMod {
 
-    preSptLoad(container: DependencyContainer): void {
+class Mod implements IPreAkiLoadMod {
+
+    preAkiLoad(container: DependencyContainer): void {
         const logger = container.resolve<ILogger>("WinstonLogger");
         container.register<InraidControllerExtension>("InraidControllerExtension", InraidControllerExtension);
         container.register("InraidController", { useToken: "InraidControllerExtension" });

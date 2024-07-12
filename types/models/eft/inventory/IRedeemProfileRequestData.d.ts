@@ -1,4 +1,4 @@
-import { IInventoryBaseActionRequestData } from "@spt/models/eft/inventory/IInventoryBaseActionRequestData";
+import { IInventoryBaseActionRequestData } from "./IInventoryBaseActionRequestData";
 export interface IRedeemProfileRequestData extends IInventoryBaseActionRequestData {
     Action: "RedeemProfileReward";
     events: IRedeemProfileRequestEvent[];

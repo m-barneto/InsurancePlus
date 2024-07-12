@@ -3,5 +3,4 @@ export interface IInsuredItemsData {
     durability?: number;
     maxDurability?: number;
     hits?: number;
-    usedInQuest: boolean;
 }

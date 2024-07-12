@@ -1,24 +1,25 @@
-import { HandbookHelper } from "@spt/helpers/HandbookHelper";
-import { ItemHelper } from "@spt/helpers/ItemHelper";
-import { ProfileHelper } from "@spt/helpers/ProfileHelper";
-import { IPmcData } from "@spt/models/eft/common/IPmcData";
-import { Item } from "@spt/models/eft/common/tables/IItem";
-import { ProfileTraderTemplate } from "@spt/models/eft/common/tables/IProfileTemplate";
-import { ITraderAssort, ITraderBase, LoyaltyLevel } from "@spt/models/eft/common/tables/ITrader";
-import { ISptProfile } from "@spt/models/eft/profile/ISptProfile";
-import { Traders } from "@spt/models/enums/Traders";
-import { ITraderConfig } from "@spt/models/spt/config/ITraderConfig";
-import { ILogger } from "@spt/models/spt/utils/ILogger";
-import { ConfigServer } from "@spt/servers/ConfigServer";
-import { DatabaseService } from "@spt/services/DatabaseService";
-import { FenceService } from "@spt/services/FenceService";
-import { LocalisationService } from "@spt/services/LocalisationService";
-import { PlayerService } from "@spt/services/PlayerService";
-import { RandomUtil } from "@spt/utils/RandomUtil";
-import { TimeUtil } from "@spt/utils/TimeUtil";
+import { HandbookHelper } from "@spt-aki/helpers/HandbookHelper";
+import { ItemHelper } from "@spt-aki/helpers/ItemHelper";
+import { ProfileHelper } from "@spt-aki/helpers/ProfileHelper";
+import { IPmcData } from "@spt-aki/models/eft/common/IPmcData";
+import { Item } from "@spt-aki/models/eft/common/tables/IItem";
+import { ProfileTraderTemplate } from "@spt-aki/models/eft/common/tables/IProfileTemplate";
+import { ITraderAssort, ITraderBase, LoyaltyLevel } from "@spt-aki/models/eft/common/tables/ITrader";
+import { Traders } from "@spt-aki/models/enums/Traders";
+import { ITraderConfig } from "@spt-aki/models/spt/config/ITraderConfig";
+import { ILogger } from "@spt-aki/models/spt/utils/ILogger";
+import { ConfigServer } from "@spt-aki/servers/ConfigServer";
+import { DatabaseServer } from "@spt-aki/servers/DatabaseServer";
+import { SaveServer } from "@spt-aki/servers/SaveServer";
+import { FenceService } from "@spt-aki/services/FenceService";
+import { LocalisationService } from "@spt-aki/services/LocalisationService";
+import { PlayerService } from "@spt-aki/services/PlayerService";
+import { RandomUtil } from "@spt-aki/utils/RandomUtil";
+import { TimeUtil } from "@spt-aki/utils/TimeUtil";
 export declare class TraderHelper {
     protected logger: ILogger;
-    protected databaseService: DatabaseService;
+    protected databaseServer: DatabaseServer;
+    protected saveServer: SaveServer;
     protected profileHelper: ProfileHelper;
     protected handbookHelper: HandbookHelper;
     protected itemHelper: ItemHelper;
@@ -30,8 +31,10 @@ export declare class TraderHelper {
     protected configServer: ConfigServer;
     protected traderConfig: ITraderConfig;
     /** Dictionary of item tpl and the highest trader sell rouble price */
-    protected highestTraderPriceItems?: Record<string, number>;
-    constructor(logger: ILogger, databaseService: DatabaseService, profileHelper: ProfileHelper, handbookHelper: HandbookHelper, itemHelper: ItemHelper, playerService: PlayerService, localisationService: LocalisationService, fenceService: FenceService, timeUtil: TimeUtil, randomUtil: RandomUtil, configServer: ConfigServer);
+    protected highestTraderPriceItems: Record<string, number>;
+    /** Dictionary of item tpl and the highest trader buy back rouble price */
+    protected highestTraderBuyPriceItems: Record<string, number>;
+    constructor(logger: ILogger, databaseServer: DatabaseServer, saveServer: SaveServer, profileHelper: ProfileHelper, handbookHelper: HandbookHelper, itemHelper: ItemHelper, playerService: PlayerService, localisationService: LocalisationService, fenceService: FenceService, timeUtil: TimeUtil, randomUtil: RandomUtil, configServer: ConfigServer);
     /**
      * Get a trader base object, update profile to reflect players current standing in profile
      * when trader not found in profile
@@ -39,7 +42,7 @@ export declare class TraderHelper {
      * @param sessionID Players id
      * @returns Trader base
      */
-    getTrader(traderID: string, sessionID: string): ITraderBase | undefined;
+    getTrader(traderID: string, sessionID: string): ITraderBase;
     /**
      * Get all assort data for a particular trader
      * @param traderId Trader to get assorts for
@@ -52,7 +55,7 @@ export declare class TraderHelper {
      * @param assortId Id of assort to find
      * @returns Item object
      */
-    getTraderAssortItemByAssortId(traderId: string, assortId: string): Item | undefined;
+    getTraderAssortItemByAssortId(traderId: string, assortId: string): Item;
     /**
      * Reset a profiles trader data back to its initial state as seen by a level 1 player
      * Does NOT take into account different profile levels
@@ -67,12 +70,6 @@ export declare class TraderHelper {
      * @returns Standing value
      */
     protected getStartingStanding(traderId: string, rawProfileTemplate: ProfileTraderTemplate): number;
-    /**
-     * Add an array of suit ids to a profiles suit array, no duplicates
-     * @param fullProfile Profile to add to
-     * @param suitIds Suit Ids to add
-     */
-    protected addSuitsToProfile(fullProfile: ISptProfile, suitIds: string[]): void;
     /**
      * Alter a traders unlocked status
      * @param traderId Trader to alter
@@ -95,15 +92,9 @@ export declare class TraderHelper {
      */
     protected addStandingValuesTogether(currentStanding: number, standingToAdd: number): number;
     /**
-     * iterate over a profiles traders and ensure they have the correct loyaltyLevel for the player
-     * @param sessionId Profile to check
-     */
-    validateTraderStandingsAndPlayerLevelForProfile(sessionId: string): void;
-    /**
      * Calculate traders level based on exp amount and increments level if over threshold
-     * Also validates and updates player level if not correct based on XP value
-     * @param traderID Trader to check standing of
-     * @param pmcData Profile to update trader in
+     * @param traderID trader to check standing of
+     * @param pmcData profile to update trader in
      */
     lvlUp(traderID: string, pmcData: IPmcData): void;
     /**
@@ -117,7 +108,7 @@ export declare class TraderHelper {
      * @param traderId Trader to look up
      * @returns Time in seconds
      */
-    getTraderUpdateSeconds(traderId: string): number | undefined;
+    getTraderUpdateSeconds(traderId: string): number;
     getLoyaltyLevel(traderID: string, pmcData: IPmcData): LoyaltyLevel;
     /**
      * Store the purchase of an assort from a trader in the player profile
@@ -131,13 +122,6 @@ export declare class TraderHelper {
         }[];
         traderId: string;
     }, itemPurchased: Item): void;
-    /**
-     * EoD and Unheard get a 20% bonus to personal trader limit purchases
-     * @param buyRestrictionMax Existing value from trader item
-     * @param gameVersion Profiles game version
-     * @returns buyRestrictionMax value
-     */
-    getAccountTypeAdjustedTraderPurchaseLimit(buyRestrictionMax: number, gameVersion: string): number;
     /**
      * Get the highest rouble price for an item from traders
      * UNUSED
@@ -156,7 +140,7 @@ export declare class TraderHelper {
      * @param traderId Traders id
      * @returns Traders key
      */
-    getTraderById(traderId: string): Traders | undefined;
+    getTraderById(traderId: string): Traders;
     /**
      * Validates that the provided traderEnumValue exists in the Traders enum. If the value is valid, it returns the
      * same enum value, effectively serving as a trader ID; otherwise, it logs an error and returns an empty string.

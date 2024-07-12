@@ -1,4 +1,4 @@
-import { MinMax } from "@spt/models/common/MinMax";
+import { MinMax } from "@spt-aki/models/common/MinMax";
 export interface LootRequest {
     weaponPresetCount: MinMax;
     armorPresetCount: MinMax;
@@ -11,5 +11,4 @@ export interface LootRequest {
     itemStackLimits: Record<string, MinMax>;
     armorLevelWhitelist: number[];
     allowBossItems: boolean;
-    useRewarditemBlacklist?: boolean;
 }

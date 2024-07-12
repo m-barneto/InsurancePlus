@@ -1,7 +1,7 @@
 {
     "name": "insuranceplus",
     "version": "1.2.1",
-    "sptVersion": "~3.9",
+    "akiVersion": "~3.8",
     "loadBefore": [],
     "loadAfter": [],
     "incompatibilities": [],

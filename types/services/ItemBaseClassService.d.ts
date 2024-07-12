@@ -1,18 +1,18 @@
-import { ITemplateItem } from "@spt/models/eft/common/tables/ITemplateItem";
-import { ILogger } from "@spt/models/spt/utils/ILogger";
-import { DatabaseService } from "@spt/services/DatabaseService";
-import { LocalisationService } from "@spt/services/LocalisationService";
+import { ITemplateItem } from "@spt-aki/models/eft/common/tables/ITemplateItem";
+import { ILogger } from "@spt-aki/models/spt/utils/ILogger";
+import { DatabaseServer } from "@spt-aki/servers/DatabaseServer";
+import { LocalisationService } from "@spt-aki/services/LocalisationService";
 /**
  * Cache the baseids for each item in the tiems db inside a dictionary
  */
 export declare class ItemBaseClassService {
     protected logger: ILogger;
     protected localisationService: LocalisationService;
-    protected databaseService: DatabaseService;
+    protected databaseServer: DatabaseServer;
     protected itemBaseClassesCache: Record<string, string[]>;
     protected items: Record<string, ITemplateItem>;
     protected cacheGenerated: boolean;
-    constructor(logger: ILogger, localisationService: LocalisationService, databaseService: DatabaseService);
+    constructor(logger: ILogger, localisationService: LocalisationService, databaseServer: DatabaseServer);
     /**
      * Create cache and store inside ItemBaseClassService
      * Store a dict of an items tpl to the base classes it and its parents have

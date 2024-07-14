@@ -303,7 +303,6 @@ export class InraidControllerExtension extends InraidController {
             const itemIndex = inventoryItems.findIndex((item) => item._id === itemToDelete);
             if (itemIndex != -1) {
                 const item = inventoryItems[itemIndex];
-                this.logger.info(`Item: ${item._id}`);
                 if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item)) {
                     this.inRaidHelper["inventoryHelper"].removeItem(pmcData, itemToDelete, sessionID);
                 }

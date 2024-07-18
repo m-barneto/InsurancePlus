@@ -322,7 +322,7 @@ export class InraidControllerExtension extends InraidController {
                     returnObj.DeleteInsurance.push(itemInInventory._id);
                 }
 				
-                if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && !this.isRequiredArmorPlate(itemInInventory, item)) {
+                if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item) && !insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && !this.isRequiredArmorPlate(itemInInventory, item)) {
                     returnObj.DeleteItem.push(itemInInventory._id);
                 } else if (dbParentIdsToCheck.includes(this.databaseService.getTemplates().items[itemInInventory._tpl]._parent)) {
                     returnObj = this.handleInventoryItems(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, returnObj)

@@ -1,4 +1,5 @@
 {
 	"EnableDefaultInsurance": true,
-	"LoseInsuranceOnItemAfterDeath": false
+	"LoseInsuranceOnItemAfterDeath": false,
+	"LoseAmmoInMagazines": true
 }

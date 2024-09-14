@@ -13,6 +13,7 @@ import { IPmcData } from "@spt/models/eft/common/IPmcData";
 import { InsuredItem } from "@spt/models/eft/common/tables/IBotBase";
 import { Item } from "@spt/models/eft/common/tables/IItem";
 import { ISaveProgressRequestData } from "@spt/models/eft/inRaid/ISaveProgressRequestData";
+import { BaseClasses } from "@spt/models/enums/BaseClasses";
 import { ItemTpl } from "@spt/models/enums/ItemTpl";
 import { QuestStatus } from "@spt/models/enums/QuestStatus";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
@@ -238,7 +239,8 @@ export class InraidControllerExtension extends InraidController {
         const insuredItems = [];
         let deleteObj = {
             "DeleteItem": [],
-            "DeleteInsurance": []
+            "DeleteInsurance": [],
+            "Magazines": []
         };
         const dbParentIdsToCheck = [
             "5795f317245977243854e041",	// Container
@@ -254,7 +256,8 @@ export class InraidControllerExtension extends InraidController {
             "5447b6194bdc2d67278b4567",	// Marksman Rifles
             "5447b5f14bdc2d61278b4567",	// Assault Rifles
             "5447b5fc4bdc2d87278b4567",	// Assault Carbines
-            "617f1ef5e8b54b0998387733"	// Revolvers
+            "617f1ef5e8b54b0998387733",	// Revolvers
+            "5485a8684bdc2da71d8b4567"  // Magazines
         ];
 		
         // dump all insured items in a simple array
@@ -289,7 +292,7 @@ export class InraidControllerExtension extends InraidController {
                 if (item.slotId === "FirstPrimaryWeapon" || item.slotId === "SecondPrimaryWeapon" || item.slotId === "Holster") {
                     deleteObj = this.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, deleteObj);
                 }
-            } else if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item)){
+            } else if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item)) {
                 if (item.parentId === pmcData.Inventory.questRaidItems) {
                     deleteObj.DeleteItem.push(item._id);
                 }
@@ -305,6 +308,8 @@ export class InraidControllerExtension extends InraidController {
                 if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item)) {
                     this.inRaidHelper["inventoryHelper"].removeItem(pmcData, itemToDelete, sessionID);
                 }
+            } else {
+                this.logger.info(`Unable to find index of item ${itemToDelete}`);
             }
         }
         
@@ -316,7 +321,7 @@ export class InraidControllerExtension extends InraidController {
         pmcData.Inventory.fastPanel = {};
     }
 
-    public handleInventoryItems(pmcData: IPmcData, item: Item, insuredItems: string[], dbParentIdsToCheck: string[], returnObj: { DeleteInsurance: string[]; DeleteItem: string[]; }): { DeleteInsurance: string[]; DeleteItem: string[]; } {
+    public handleInventoryItems(pmcData: IPmcData, item: Item, insuredItems: string[], dbParentIdsToCheck: string[], returnObj: { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; }): { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; } {
         for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
             // Don't delete items in special slots
             // also skip insured items
@@ -324,6 +329,16 @@ export class InraidControllerExtension extends InraidController {
                 // add equipped insured items to an insurance delete array
                 if (insuredItems.includes(itemInInventory._id)) {
                     returnObj.DeleteInsurance.push(itemInInventory._id);
+                }
+
+                if (this.config.LoseAmmoInMagazines) {
+                    if (this.itemHelper.isOfBaseclass(itemInInventory._tpl, BaseClasses.MAGAZINE)) {
+                        for (const bulletInMag of pmcData.Inventory.items.filter(x => x.parentId == itemInInventory._id)) {
+                            if (bulletInMag.slotId === "cartridges") {
+                                returnObj.DeleteItem.push(bulletInMag._id);
+                            }
+                        }
+                    }
                 }
 				
                 if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item) && !insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && !this.isRequiredArmorPlate(itemInInventory, item)) {
@@ -337,12 +352,23 @@ export class InraidControllerExtension extends InraidController {
         return returnObj;
     }
 
-    public handleEquippedGuns(pmcData: IPmcData, item: Item, insuredItems: string[], dbParentIdsToCheck: string[], returnObj: { DeleteInsurance: string[]; DeleteItem: string[]; }): { DeleteInsurance: string[]; DeleteItem: string[]; } {
+    public handleEquippedGuns(pmcData: IPmcData, item: Item, insuredItems: string[], dbParentIdsToCheck: string[], returnObj: { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; }): { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; } {
         for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
-            // skip if its ammo, we want to keep it
-            if (this.databaseService.getTemplates().items[itemInInventory._tpl]._parent === "5485a8684bdc2da71d8b4567") {
-                continue;
+            if (this.config.LoseAmmoInMagazines) {
+                if (this.itemHelper.isOfBaseclass(itemInInventory._tpl, "5485a8684bdc2da71d8b4567")) {
+                    returnObj.DeleteItem.push(itemInInventory._id);
+                    continue;
+                }
+                if (itemInInventory.slotId === "mod_magazine") {
+                    for (const bulletInMag of pmcData.Inventory.items.filter(x => x.parentId == itemInInventory._id)) {
+                        if (bulletInMag.slotId === "cartridges") {
+                            returnObj.DeleteItem.push(bulletInMag._id);
+                        }
+                    }
+                }
             }
+
+            
 			
             // add to insured array if insured
             if (insuredItems.includes(itemInInventory._id)) {
@@ -365,7 +391,7 @@ export class InraidControllerExtension extends InraidController {
             }
 			
             // if item can have slots and is insured, call this function again
-            if (this.databaseService.getTemplates().items[itemInInventory._tpl]._props.Slots.length != 0 && insuredItems.includes(itemInInventory._id)) {
+            if (this.databaseService.getTemplates().items[itemInInventory._tpl]._props.Slots?.length != 0 && insuredItems.includes(itemInInventory._id)) {
                 returnObj = this.handleEquippedGuns(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, returnObj);
             }
 			

@@ -289,14 +289,13 @@ export class InraidControllerExtension extends InraidController {
                 if (item.slotId === "FirstPrimaryWeapon" || item.slotId === "SecondPrimaryWeapon" || item.slotId === "Holster") {
                     deleteObj = this.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, deleteObj);
                 }
+            } else if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item)){
+                if (item.parentId === pmcData.Inventory.questRaidItems) {
+                    deleteObj.DeleteItem.push(item._id);
+                }
             }
         }
 		
-        // remove insurance from equipped items
-        if (this.config.LoseInsuranceOnItemAfterDeath) {
-            pmcData.InsuredItems = this.removeInsuredItems(pmcData.InsuredItems, deleteObj.DeleteInsurance)
-        }
-
         // delete items
         const inventoryItems = pmcData.Inventory.items;
         for (const itemToDelete of deleteObj.DeleteItem) {
@@ -307,6 +306,11 @@ export class InraidControllerExtension extends InraidController {
                     this.inRaidHelper["inventoryHelper"].removeItem(pmcData, itemToDelete, sessionID);
                 }
             }
+        }
+        
+        // remove insurance from equipped items
+        if (this.config.LoseInsuranceOnItemAfterDeath) {
+            pmcData.InsuredItems = this.removeInsuredItems(pmcData.InsuredItems, deleteObj.DeleteInsurance)
         }
 
         pmcData.Inventory.fastPanel = {};

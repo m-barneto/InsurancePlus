@@ -322,7 +322,7 @@ export class InraidControllerExtension extends InraidController {
     }
 
     public handleInventoryItems(pmcData: IPmcData, item: Item, insuredItems: string[], dbParentIdsToCheck: string[], returnObj: { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; }): { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; } {
-        for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
+        for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id || x._id == item._id)) {
             // Don't delete items in special slots
             // also skip insured items
             if (!itemInInventory.slotId.includes("SpecialSlot")) {

@@ -355,7 +355,7 @@ export class InraidControllerExtension extends InraidController {
     public handleEquippedGuns(pmcData: IPmcData, item: Item, insuredItems: string[], dbParentIdsToCheck: string[], returnObj: { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; }): { DeleteInsurance: string[]; DeleteItem: string[]; Magazines: string[]; } {
         for (const itemInInventory of pmcData.Inventory.items.filter(x => x.parentId == item._id)) {
             if (this.config.LoseAmmoInMagazines) {
-                if (this.itemHelper.isOfBaseclass(itemInInventory._tpl, "5485a8684bdc2da71d8b4567")) {
+                if (this.itemHelper.isOfBaseclass(itemInInventory._tpl, "5485a8684bdc2da71d8b4567") && !insuredItems.includes(itemInInventory._id)) {
                     returnObj.DeleteItem.push(itemInInventory._id);
                     continue;
                 }

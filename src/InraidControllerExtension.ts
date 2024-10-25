@@ -375,7 +375,7 @@ export class InraidControllerExtension extends InraidController {
                 returnObj.DeleteInsurance.push(itemInInventory._id);
             }
 			
-            if (this.databaseService.getTemplates().items[item._tpl]._props.Slots.length != 0) {
+            if (this.databaseService.getTemplates().items[item._tpl]._props.Slots?.length != 0) {
                 for (const slotsIndex in this.databaseService.getTemplates().items[item._tpl]._props.Slots) {
                     if (this.databaseService.getTemplates().items[item._tpl]._props.Slots[slotsIndex]._props.filters[0].Filter.includes(itemInInventory._tpl)) {
 						

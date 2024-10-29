@@ -37,50 +37,20 @@ export class InraidControllerExtension extends InraidController {
     private config = require("../config/config.json");
 
     constructor(
-        @inject("WinstonLogger") protected logger: ILogger,
+        @inject("PrimaryLogger") protected logger: ILogger,
         @inject("SaveServer") protected saveServer: SaveServer,
-        @inject("JsonUtil") protected jsonUtil: JsonUtil,
-        @inject("TimeUtil") protected timeUtil: TimeUtil,
-        @inject("DatabaseService") protected databaseService: DatabaseService,
-        @inject("TraderServicesService") protected traderServicesService: TraderServicesService, 
-        @inject("LocalisationService") protected localisationService: LocalisationService,
-        @inject("PmcChatResponseService") protected pmcChatResponseService: PmcChatResponseService,
-        @inject("MatchBotDetailsCacheService") protected matchBotDetailsCacheService: MatchBotDetailsCacheService,
-        @inject("QuestHelper") protected questHelper: QuestHelper,
-        @inject("ItemHelper") protected itemHelper: ItemHelper,
         @inject("ProfileHelper") protected profileHelper: ProfileHelper,
-        @inject("PlayerScavGenerator") protected playerScavGenerator: PlayerScavGenerator,
-        @inject("NotificationSendHelper") protected notificationSendHelper: NotificationSendHelper,
-        @inject("HealthHelper") protected healthHelper: HealthHelper,
-        @inject("TraderHelper") protected traderHelper: TraderHelper,
-        @inject("InsuranceService") protected insuranceService: InsuranceService,
-        @inject("InRaidHelper") protected inRaidHelper: InRaidHelper,
+        @inject("LocalisationService") protected localisationService: LocalisationService,
         @inject("ApplicationContext") protected applicationContext: ApplicationContext,
-        @inject("ConfigServer") protected configServer: ConfigServer,
-        @inject("MailSendService") protected mailSendService: MailSendService,
-        @inject("RandomUtil") randomUtil: RandomUtil
+        @inject("ConfigServer") protected configServer: ConfigServer
     ) {
         super(
             logger,
             saveServer,
-            timeUtil,
-            databaseService,
-            pmcChatResponseService,
-            matchBotDetailsCacheService,
-            questHelper,
-            itemHelper,
             profileHelper,
-            playerScavGenerator,
-            healthHelper,
-            traderHelper,
-            traderServicesService,
             localisationService,
-            insuranceService,
-            inRaidHelper,
             applicationContext,
-            configServer,
-            mailSendService,
-            randomUtil
+            configServer
         );
     }
 

@@ -12,12 +12,14 @@ export interface ISeasonalEventConfig extends IBaseConfig {
     gifterSettings: IGifterSetting[];
 }
 export interface ISeasonalEvent {
+    enabled: boolean;
     name: string;
     type: SeasonalEventType;
     startDay: number;
     startMonth: number;
     endDay: number;
     endMonth: number;
+    settings?: Record<string, boolean>;
 }
 export interface IGifterSetting {
     map: string;

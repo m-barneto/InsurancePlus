@@ -127,7 +127,7 @@ export class InraidControllerExtension extends InraidController {
                 postRaidRequest.profile.Stats.Eft.Aggressor
             );
             this.matchBotDetailsCacheService.clearCache();
-            
+
             this.performPostRaidActionsWhenDead(postRaidRequest, serverPmcProfile, sessionID);
         } else {
             // Not dead
@@ -187,7 +187,7 @@ export class InraidControllerExtension extends InraidController {
                     )
             ).map((x) => x.qid);
             for (const questItem of postRaidSaveRequest.profile.Stats.Eft.CarriedQuestItems) {
-            // Get quest/find condition for carried quest item
+                // Get quest/find condition for carried quest item
                 const questAndFindItemConditionId = this.questHelper.getFindItemConditionByQuestItem(
                     questItem,
                     activeQuestIdsInProfile,
@@ -229,7 +229,7 @@ export class InraidControllerExtension extends InraidController {
             "617f1ef5e8b54b0998387733",	// Revolvers
             "5485a8684bdc2da71d8b4567"  // Magazines
         ];
-		
+
         // dump all insured items in a simple array
         for (const insItem of pmcData.InsuredItems) {
             insuredItems.push(insItem.itemId);
@@ -242,22 +242,22 @@ export class InraidControllerExtension extends InraidController {
                 if (insuredItems.includes(item._id)) {
                     deleteObj.DeleteInsurance.push(item._id);
                 }
-				
+
                 // handle them pockets
                 if (item.slotId.startsWith("Pockets")) {
                     deleteObj = this.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, deleteObj);
                 }
-				
+
                 // push uninsured item to delete array
                 if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item) && !insuredItems.includes(item._id) || item.parentId === pmcData.Inventory.questRaidItems) {
                     deleteObj.DeleteItem.push(item._id);
                 }
-				
+
                 // Remove items inside gear items
                 if (item.slotId != "hideout" && item.slotId != "FirstPrimaryWeapon" && item.slotId != "SecondPrimaryWeapon" && item.slotId != "Holster" && !this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item)) {
                     deleteObj = this.handleInventoryItems(pmcData, item, insuredItems, dbParentIdsToCheck, deleteObj);
                 }
-				
+
                 // handle equipped guns, since we don't want want them becoming unoperable in player hands
                 if (item.slotId === "FirstPrimaryWeapon" || item.slotId === "SecondPrimaryWeapon" || item.slotId === "Holster") {
                     deleteObj = this.handleEquippedGuns(pmcData, item, insuredItems, dbParentIdsToCheck, deleteObj);
@@ -268,7 +268,7 @@ export class InraidControllerExtension extends InraidController {
                 }
             }
         }
-		
+
         // delete items
         const inventoryItems = pmcData.Inventory.items;
         for (const itemToDelete of deleteObj.DeleteItem) {
@@ -282,7 +282,7 @@ export class InraidControllerExtension extends InraidController {
                 this.logger.info(`Unable to find index of item ${itemToDelete}`);
             }
         }
-        
+
         // remove insurance from equipped items
         if (this.config.LoseInsuranceOnItemAfterDeath) {
             pmcData.InsuredItems = this.removeInsuredItems(pmcData.InsuredItems, deleteObj.DeleteInsurance)
@@ -310,7 +310,7 @@ export class InraidControllerExtension extends InraidController {
                         }
                     }
                 }
-				
+
                 if (!this.inRaidHelper["isItemKeptAfterDeath"](pmcData, item) && !insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && !this.isRequiredArmorPlate(itemInInventory, item)) {
                     returnObj.DeleteItem.push(itemInInventory._id);
                 } else if (dbParentIdsToCheck.includes(this.databaseService.getTemplates().items[itemInInventory._tpl]._parent)) {
@@ -318,7 +318,7 @@ export class InraidControllerExtension extends InraidController {
                 }
             }
         }
-		
+
         return returnObj;
     }
 
@@ -338,17 +338,17 @@ export class InraidControllerExtension extends InraidController {
                 }
             }
 
-            
-			
+
+
             // add to insured array if insured
             if (insuredItems.includes(itemInInventory._id)) {
                 returnObj.DeleteInsurance.push(itemInInventory._id);
             }
-			
+
             if (this.databaseService.getTemplates().items[item._tpl]._props.Slots?.length != 0) {
                 for (const slotsIndex in this.databaseService.getTemplates().items[item._tpl]._props.Slots) {
                     if (this.databaseService.getTemplates().items[item._tpl]._props.Slots[slotsIndex]._props.filters[0].Filter.includes(itemInInventory._tpl)) {
-						
+
                         // check if the item is required, like pistol grips, gasblocks, etc
                         if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id) && this.databaseService.getTemplates().items[item._tpl]._props.Slots[slotsIndex]._required === false) {
                             returnObj.DeleteItem.push(itemInInventory._id);
@@ -359,20 +359,20 @@ export class InraidControllerExtension extends InraidController {
             } else if (!insuredItems.includes(itemInInventory._id) && !returnObj.DeleteItem.includes(itemInInventory._id)) {
                 returnObj.DeleteItem.push(itemInInventory._id);
             }
-			
+
             // if item can have slots and is insured, call this function again
             if (this.databaseService.getTemplates().items[itemInInventory._tpl]._props.Slots?.length != 0 && insuredItems.includes(itemInInventory._id)) {
                 returnObj = this.handleEquippedGuns(pmcData, itemInInventory, insuredItems, dbParentIdsToCheck, returnObj);
             }
-			
+
         }
-		
+
         return returnObj;
     }
 
     public removeInsuredItems(insuredItemsList: InsuredItem[], itemsToRemove: string[]): InsuredItem[] {
         const returnList = insuredItemsList.filter(entry => !itemsToRemove.includes(entry.itemId));
-		
+
         return returnList;
     }
 

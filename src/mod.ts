@@ -33,6 +33,7 @@ import { IEndLocalRaidRequestData } from "@spt/models/eft/match/IEndLocalRaidReq
 import { QuestController } from "@spt/controllers/QuestController";
 import { InventoryHelper } from "@spt/helpers/InventoryHelper";
 import { ItemHelper } from "@spt/helpers/ItemHelper";
+import { IItem } from "@spt/models/eft/common/tables/IItem";
 
 class Mod implements IPreSptLoadMod {
     preSptLoad(container: DependencyContainer): void {
@@ -49,9 +50,16 @@ class Mod implements IPreSptLoadMod {
 
 export const mod = new Mod();
 
+interface ModConfig {
+    EnableDefaultInsurance: boolean;
+    LoseInsuranceOnItemAfterDeath: boolean;
+    LoseAmmoInMagazines: boolean;
+}
 
 @injectable()
 class InRaidHelperExtension extends InRaidHelper {
+    private config: ModConfig = require("../config/config.json");
+
     constructor(
         @inject("PrimaryLogger") protected logger: ILogger,
         @inject("InventoryHelper") protected inventoryHelper: InventoryHelper,
@@ -82,15 +90,26 @@ class InRaidHelperExtension extends InRaidHelper {
      * @param pmcData Player profile
      * @param sessionId Session id
      */
-    public override deleteInventory(pmcData: IPmcData, sessionId: string): void {
-        // Get inventory item ids to remove from players profile
-        const itemIdsToDeleteFromProfile = this.getInventoryItemsLostOnDeath(pmcData).map((item) => item._id);
-        for (const itemIdToDelete of itemIdsToDeleteFromProfile) {
-            // Items inside containers are handled as part of function
-            this.inventoryHelper.removeItem(pmcData, itemIdToDelete, sessionId);
+    protected isItemKeptAfterDeath(pmcData: IPmcData, itemToCheck: IItem): boolean {
+        const original = super.isItemKeptAfterDeath(pmcData, itemToCheck);
+        if (original) return true;
+
+        // If it's not been marked to keep then we need to check if it's insured and handle it accordingly.
+        const insuredIndex = pmcData.InsuredItems.findIndex((item) => item.itemId === itemToCheck._id);
+
+        // if it's insured
+        if (insuredIndex !== -1) {
+            if (this.config.LoseInsuranceOnItemAfterDeath) {
+                // Remove insured status
+                pmcData.InsuredItems.splice(insuredIndex, 1);
+            }
+            // Keep the item
+            return true;
         }
 
-        // Remove contents of fast panel
-        pmcData.Inventory.fastPanel = {};
+        // If it's a required item.
+
+
+        return false;
     }
 }

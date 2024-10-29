@@ -108,6 +108,7 @@ class InRaidHelperExtension extends InRaidHelper {
         }
 
         // If it's a required item.
+        
 
 
         return false;

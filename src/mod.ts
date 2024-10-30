@@ -1,43 +1,23 @@
 import { DependencyContainer, inject, injectable } from "tsyringe";
 import { IPreSptLoadMod } from "@spt/models/external/IPreSptLoadMod";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
-import { LocationLifecycleService } from "@spt/services/LocationLifecycleService";
-import { ApplicationContext } from "@spt/context/ApplicationContext";
-import { LocationLootGenerator } from "@spt/generators/LocationLootGenerator";
-import { LootGenerator } from "@spt/generators/LootGenerator";
-import { PlayerScavGenerator } from "@spt/generators/PlayerScavGenerator";
-import { HealthHelper } from "@spt/helpers/HealthHelper";
 import { InRaidHelper } from "@spt/helpers/InRaidHelper";
 import { ProfileHelper } from "@spt/helpers/ProfileHelper";
 import { QuestHelper } from "@spt/helpers/QuestHelper";
-import { TraderHelper } from "@spt/helpers/TraderHelper";
 import { ConfigServer } from "@spt/servers/ConfigServer";
-import { SaveServer } from "@spt/servers/SaveServer";
-import { BotGenerationCacheService } from "@spt/services/BotGenerationCacheService";
-import { BotLootCacheService } from "@spt/services/BotLootCacheService";
-import { BotNameService } from "@spt/services/BotNameService";
 import { DatabaseService } from "@spt/services/DatabaseService";
-import { InsuranceService } from "@spt/services/InsuranceService";
-import { LocalisationService } from "@spt/services/LocalisationService";
-import { MailSendService } from "@spt/services/MailSendService";
-import { MatchBotDetailsCacheService } from "@spt/services/MatchBotDetailsCacheService";
-import { PmcChatResponseService } from "@spt/services/PmcChatResponseService";
-import { RaidTimeAdjustmentService } from "@spt/services/RaidTimeAdjustmentService";
 import { ICloner } from "@spt/utils/cloners/ICloner";
-import { HashUtil } from "@spt/utils/HashUtil";
-import { RandomUtil } from "@spt/utils/RandomUtil";
-import { TimeUtil } from "@spt/utils/TimeUtil";
 import { IPmcData } from "@spt/models/eft/common/IPmcData";
-import { Traders } from "@spt/models/enums/Traders";
-import { IEndLocalRaidRequestData } from "@spt/models/eft/match/IEndLocalRaidRequestData";
 import { QuestController } from "@spt/controllers/QuestController";
 import { InventoryHelper } from "@spt/helpers/InventoryHelper";
 import { ItemHelper } from "@spt/helpers/ItemHelper";
 import { IItem } from "@spt/models/eft/common/tables/IItem";
 import { LocaleService } from "@spt/services/LocaleService";
+import { ITemplateItem } from "@spt/models/eft/common/tables/ITemplateItem";
 
 class Mod implements IPreSptLoadMod {
     public static locales: Record<string, string>;
+    public static itemTemplates: Record<string, ITemplateItem>;
     preSptLoad(container: DependencyContainer): void {
         const logger = container.resolve<ILogger>("WinstonLogger");
         // container.register<LocationLifecycleServiceExtension>("LocationLifecycleServiceExtension", LocationLifecycleServiceExtension);
@@ -51,6 +31,7 @@ class Mod implements IPreSptLoadMod {
 
     postSptLoad(container: DependencyContainer): void {
         Mod.locales = container.resolve<LocaleService>("LocaleService").getLocaleDb();
+        Mod.itemTemplates = container.resolve<DatabaseService>("DatabaseService").getTables().templates.items;
     }
 }
 
@@ -97,11 +78,15 @@ class InRaidHelperExtension extends InRaidHelper {
      * @param sessionId Session id
      */
     public deleteInventory(pmcData: IPmcData, sessionId: string): void {
-        // Get inventory item ids to remove from players profile
-        const itemIdsToDeleteFromProfile = this.getInventoryItemsLostOnDeath(pmcData).map((item) => item._id);
-        for (const itemIdToDelete of itemIdsToDeleteFromProfile) {
+        // Get inventory item ids to remove from players profile (only in equipment slots)
+        const itemsLostOnDeath = this.getInventoryItemsLostOnDeath(pmcData).filter((item) => item.slotId === pmcData.Inventory.equipment);
+
+        this.logger.info("Items to remove:");
+        for (const item of itemsLostOnDeath) {
+            this.logger.info(`Item Name: ${Mod.locales[item._tpl + " Name"]}`);
+            this.logger.info(`Item Slot: ${item.slotId ?? "undefined"}`);
             // If it's not been marked to keep then we need to check if it's insured and handle it accordingly.
-            const insuredIndex = pmcData.InsuredItems.findIndex((x) => x.itemId === itemIdToDelete);
+            const insuredIndex = pmcData.InsuredItems.findIndex((x) => x.itemId === item._id);
 
             // if it's insured
             if (insuredIndex !== -1) {
@@ -110,12 +95,15 @@ class InRaidHelperExtension extends InRaidHelper {
                     pmcData.InsuredItems.splice(insuredIndex, 1);
                 }
                 // Keep the item but now let's do the same check for the children
-                this.recursiveRemoveUninsured(pmcData, sessionId, itemIdToDelete, itemIdsToDeleteFromProfile);
+                this.recursiveRemoveUninsured(pmcData, sessionId, item, itemsLostOnDeath);
             } else {
-                const item = pmcData.Inventory.items.filter((x) => x._id == itemIdToDelete)[0];
+                // Not insured
+                // If it's a required item then we're not gonna remove it
+                // if(!this.isRequiredItem(item,))
+
                 this.logger.info(`Removing: ${Mod.locales[item._tpl + " Name"]}`);
                 // Items inside containers are handled as part of function
-                this.inventoryHelper.removeItem(pmcData, itemIdToDelete, sessionId);
+                this.inventoryHelper.removeItem(pmcData, item._id, sessionId);
             }
         }
 
@@ -123,13 +111,18 @@ class InRaidHelperExtension extends InRaidHelper {
         pmcData.Inventory.fastPanel = {};
     }
 
-    private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItemId: string, itemIds: string[]) {
+    private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItem: IItem, items: IItem[]) {
         // Get the childen of the parent we're looking for (remove the parent from the list)
-        const children = this.itemHelper.findAndReturnChildrenAsItems(pmcData.Inventory.items, parentItemId).splice(0, 1);
+        const children = this.itemHelper.findAndReturnChildrenAsItems(items, parentItem._id).splice(0, 1);
+
+        const weaponSlots = [
+            "FirstPrimaryWeapon",
+            "SecondPrimaryWeapon",
+            "Holster"
+        ];
 
         // parent is not going to be removed, so check children and make sure theyre insured, otherwise remove them
-        for (const i in children) {
-            const child = children[i];
+        for (const child of children) {
             const insuredIndex = pmcData.InsuredItems.findIndex((x) => x.itemId === child._id);
             if (insuredIndex !== -1) {
                 // Insured, maybe remove insurance status and check the children of the item
@@ -137,7 +130,7 @@ class InRaidHelperExtension extends InRaidHelper {
                     // Remove insured status
                     pmcData.InsuredItems.splice(insuredIndex, 1);
                 }
-                this.recursiveRemoveUninsured(pmcData, sessionId, child._id, itemIds);
+                this.recursiveRemoveUninsured(pmcData, sessionId, child, items);
             } else {
                 // Remove item as it's not insured
                 // Items inside containers are handled as part of function
@@ -145,5 +138,13 @@ class InRaidHelperExtension extends InRaidHelper {
                 this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
             }
         }
+    }
+
+    private isRequiredItem(item: IItem, parent: IItem): boolean {
+        // If the item isn't slotted into anything then we don't have to keep it
+        if (!item.slotId) return false;
+
+        const itemTemplate = Mod.itemTemplates[parent._tpl];
+        return true;
     }
 }

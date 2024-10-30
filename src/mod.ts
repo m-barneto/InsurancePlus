@@ -34,8 +34,10 @@ import { QuestController } from "@spt/controllers/QuestController";
 import { InventoryHelper } from "@spt/helpers/InventoryHelper";
 import { ItemHelper } from "@spt/helpers/ItemHelper";
 import { IItem } from "@spt/models/eft/common/tables/IItem";
+import { LocaleService } from "@spt/services/LocaleService";
 
 class Mod implements IPreSptLoadMod {
+    public static locales: Record<string, string>;
     preSptLoad(container: DependencyContainer): void {
         const logger = container.resolve<ILogger>("WinstonLogger");
         // container.register<LocationLifecycleServiceExtension>("LocationLifecycleServiceExtension", LocationLifecycleServiceExtension);
@@ -45,6 +47,10 @@ class Mod implements IPreSptLoadMod {
         container.register("InRaidHelper", { useToken: "InRaidHelperExtension" });
 
         logger.success("[InsurancePlus] Loaded successfully.");
+    }
+
+    postSptLoad(container: DependencyContainer): void {
+        Mod.locales = container.resolve<LocaleService>("LocaleService").getLocaleDb();
     }
 }
 
@@ -90,27 +96,54 @@ class InRaidHelperExtension extends InRaidHelper {
      * @param pmcData Player profile
      * @param sessionId Session id
      */
-    protected isItemKeptAfterDeath(pmcData: IPmcData, itemToCheck: IItem): boolean {
-        const original = super.isItemKeptAfterDeath(pmcData, itemToCheck);
-        if (original) return true;
+    public deleteInventory(pmcData: IPmcData, sessionId: string): void {
+        // Get inventory item ids to remove from players profile
+        const itemIdsToDeleteFromProfile = this.getInventoryItemsLostOnDeath(pmcData).map((item) => item._id);
+        for (const itemIdToDelete of itemIdsToDeleteFromProfile) {
+            // If it's not been marked to keep then we need to check if it's insured and handle it accordingly.
+            const insuredIndex = pmcData.InsuredItems.findIndex((x) => x.itemId === itemIdToDelete);
 
-        // If it's not been marked to keep then we need to check if it's insured and handle it accordingly.
-        const insuredIndex = pmcData.InsuredItems.findIndex((item) => item.itemId === itemToCheck._id);
-
-        // if it's insured
-        if (insuredIndex !== -1) {
-            if (this.config.LoseInsuranceOnItemAfterDeath) {
-                // Remove insured status
-                pmcData.InsuredItems.splice(insuredIndex, 1);
+            // if it's insured
+            if (insuredIndex !== -1) {
+                if (this.config.LoseInsuranceOnItemAfterDeath) {
+                    // Remove insured status
+                    pmcData.InsuredItems.splice(insuredIndex, 1);
+                }
+                // Keep the item but now let's do the same check for the children
+                this.recursiveRemoveUninsured(pmcData, sessionId, itemIdToDelete, itemIdsToDeleteFromProfile);
+            } else {
+                const item = pmcData.Inventory.items.filter((x) => x._id == itemIdToDelete)[0];
+                this.logger.info(`Removing: ${Mod.locales[item._tpl + " Name"]}`);
+                // Items inside containers are handled as part of function
+                this.inventoryHelper.removeItem(pmcData, itemIdToDelete, sessionId);
             }
-            // Keep the item
-            return true;
         }
 
-        // If it's a required item.
-        
+        // Remove contents of fast panel
+        pmcData.Inventory.fastPanel = {};
+    }
 
+    private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItemId: string, itemIds: string[]) {
+        // Get the childen of the parent we're looking for (remove the parent from the list)
+        const children = this.itemHelper.findAndReturnChildrenAsItems(pmcData.Inventory.items, parentItemId).splice(0, 1);
 
-        return false;
+        // parent is not going to be removed, so check children and make sure theyre insured, otherwise remove them
+        for (const i in children) {
+            const child = children[i];
+            const insuredIndex = pmcData.InsuredItems.findIndex((x) => x.itemId === child._id);
+            if (insuredIndex !== -1) {
+                // Insured, maybe remove insurance status and check the children of the item
+                if (this.config.LoseInsuranceOnItemAfterDeath) {
+                    // Remove insured status
+                    pmcData.InsuredItems.splice(insuredIndex, 1);
+                }
+                this.recursiveRemoveUninsured(pmcData, sessionId, child._id, itemIds);
+            } else {
+                // Remove item as it's not insured
+                // Items inside containers are handled as part of function
+                this.logger.info(`Removing: ${Mod.locales[child._tpl + " Name"]}`);
+                this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+            }
+        }
     }
 }

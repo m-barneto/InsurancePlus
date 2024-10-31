@@ -79,7 +79,7 @@ class InRaidHelperExtension extends InRaidHelper {
      */
     public deleteInventory(pmcData: IPmcData, sessionId: string): void {
         // Get inventory item ids to remove from players profile (only in equipment slots)
-        const itemsLostOnDeath = this.getInventoryItemsLostOnDeath(pmcData).filter((item) => item.slotId === pmcData.Inventory.equipment);
+        const itemsLostOnDeath = this.getInventoryItemsLostOnDeath(pmcData); //.filter((item) => item.slotId === pmcData.Inventory.equipment);
 
         this.logger.info("Items to remove:");
         for (const item of itemsLostOnDeath) {
@@ -95,7 +95,7 @@ class InRaidHelperExtension extends InRaidHelper {
                     pmcData.InsuredItems.splice(insuredIndex, 1);
                 }
                 // Keep the item but now let's do the same check for the children
-                this.recursiveRemoveUninsured(pmcData, sessionId, item, itemsLostOnDeath);
+                this.recursiveRemoveUninsured(pmcData, sessionId, item, pmcData.Inventory.items);
             } else {
                 // Not insured
                 // If it's a required item then we're not gonna remove it
@@ -112,14 +112,18 @@ class InRaidHelperExtension extends InRaidHelper {
     }
 
     private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItem: IItem, items: IItem[]) {
+        this.logger.info(`Parent: ${Mod.locales[parentItem._tpl + " Name"]}`);
+        for (const i of items) {
+            this.logger.info(`Items: ${Mod.locales[i._tpl + " Name"]}`);
+        }
         // Get the childen of the parent we're looking for (remove the parent from the list)
-        const children = this.itemHelper.findAndReturnChildrenAsItems(items, parentItem._id).splice(0, 1);
+        const children = this.itemHelper.findAndReturnChildrenAsItems(items, parentItem._id);
+        children.splice(0, 1);
+        this.logger.info(`Number of children: ${children.length}`);
 
-        const weaponSlots = [
-            "FirstPrimaryWeapon",
-            "SecondPrimaryWeapon",
-            "Holster"
-        ];
+        for (const child of children) {
+            this.logger.info(`Child: ${Mod.locales[child._tpl + " Name"]}`);
+        }
 
         // parent is not going to be removed, so check children and make sure theyre insured, otherwise remove them
         for (const child of children) {
@@ -138,13 +142,5 @@ class InRaidHelperExtension extends InRaidHelper {
                 this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
             }
         }
-    }
-
-    private isRequiredItem(item: IItem, parent: IItem): boolean {
-        // If the item isn't slotted into anything then we don't have to keep it
-        if (!item.slotId) return false;
-
-        const itemTemplate = Mod.itemTemplates[parent._tpl];
-        return true;
     }
 }

@@ -1,12 +1,14 @@
 import { BotHelper } from "@spt/helpers/BotHelper";
 import { ProfileHelper } from "@spt/helpers/ProfileHelper";
 import { IConfig } from "@spt/models/eft/common/IGlobals";
+import { IAdditionalHostilitySettings } from "@spt/models/eft/common/ILocationBase";
 import { IInventory } from "@spt/models/eft/common/tables/IBotType";
 import { Season } from "@spt/models/enums/Season";
 import { SeasonalEventType } from "@spt/models/enums/SeasonalEventType";
 import { IHttpConfig } from "@spt/models/spt/config/IHttpConfig";
+import { ILocationConfig } from "@spt/models/spt/config/ILocationConfig";
 import { IQuestConfig } from "@spt/models/spt/config/IQuestConfig";
-import { ISeasonalEvent, ISeasonalEventConfig } from "@spt/models/spt/config/ISeasonalEventConfig";
+import { ISeasonalEvent, ISeasonalEventConfig, IZombieSettings } from "@spt/models/spt/config/ISeasonalEventConfig";
 import { IWeatherConfig } from "@spt/models/spt/config/IWeatherConfig";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
 import { ConfigServer } from "@spt/servers/ConfigServer";
@@ -27,6 +29,7 @@ export declare class SeasonalEventService {
     protected questConfig: IQuestConfig;
     protected httpConfig: IHttpConfig;
     protected weatherConfig: IWeatherConfig;
+    protected locationConfig: ILocationConfig;
     protected halloweenEventActive?: boolean;
     protected christmasEventActive?: boolean;
     /** All events active at this point in time */
@@ -101,6 +104,7 @@ export declare class SeasonalEventService {
      * Handle activating seasonal events
      */
     enableSeasonalEvents(): void;
+    forceSeasonalEvent(eventType: SeasonalEventType): boolean;
     /**
      * Store active events inside class array property `currentlyActiveEvents` + set class properties: christmasEventActive/halloweenEventActive
      */
@@ -122,6 +126,8 @@ export declare class SeasonalEventService {
      * @param eventName Name of the event to enable. e.g. Christmas
      */
     protected updateGlobalEvents(globalConfig: IConfig, event: ISeasonalEvent): void;
+    protected replaceBotHostility(hostilitySettings: Record<string, IAdditionalHostilitySettings[]>): void;
+    protected removeEntryRequirement(locationIds: string[]): void;
     givePlayerSeasonalGifts(sessionId: string): void;
     /**
      * Force zryachiy to always have a melee weapon
@@ -131,11 +137,20 @@ export declare class SeasonalEventService {
      * Enable the halloween zryachiy summon event
      */
     protected enableHalloweenSummonEvent(): void;
+    protected configureZombies(zombieSettings: IZombieSettings): void;
+    /**
+     * BSG store the location ids differently inside `LocationInfection`, need to convert to matching location IDs
+     * @param infectedLocationKey Key to convert
+     * @returns Array of locations
+     */
+    protected getLocationFromInfectedLocation(infectedLocationKey: string): string[];
+    protected addEventWavesToMaps(eventType: string): void;
     /**
      * Add event bosses to maps
      * @param eventType Seasonal event, e.g. HALLOWEEN/CHRISTMAS
+     * @param mapWhitelist OPTIONAL - Maps to add bosses to
      */
-    protected addEventBossesToMaps(eventType: SeasonalEventType): void;
+    protected addEventBossesToMaps(eventType: string, mapIdWhitelist?: string[]): void;
     /**
      * Change trader icons to be more event themed (Halloween only so far)
      * @param eventType What event is active

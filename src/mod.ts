@@ -14,6 +14,8 @@ import { ItemHelper } from "@spt/helpers/ItemHelper";
 import { IItem } from "@spt/models/eft/common/tables/IItem";
 import { LocaleService } from "@spt/services/LocaleService";
 import { ITemplateItem } from "@spt/models/eft/common/tables/ITemplateItem";
+import { ISeasonalEventConfig } from "@spt/models/spt/config/ISeasonalEventConfig";
+import { ConfigTypes } from "@spt/models/enums/ConfigTypes";
 
 class Mod implements IPreSptLoadMod {
     public static locales: Record<string, string>;
@@ -32,6 +34,18 @@ class Mod implements IPreSptLoadMod {
     postSptLoad(container: DependencyContainer): void {
         Mod.locales = container.resolve<LocaleService>("LocaleService").getLocaleDb();
         Mod.itemTemplates = container.resolve<DatabaseService>("DatabaseService").getTables().templates.items;
+
+        // get the config server so we can get a config with it
+        const configServer = container.resolve<ConfigServer>("ConfigServer");
+
+        // Request seasonal event config
+        const seasonConfig: ISeasonalEventConfig = configServer.getConfig<ISeasonalEventConfig>(ConfigTypes.SEASONAL_EVENT);
+
+        for (const seasonEvent of seasonConfig.events) {
+            // changes here
+            seasonEvent.enabled = true;
+            
+        }
     }
 }
 

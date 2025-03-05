@@ -16,6 +16,28 @@ import { LocaleService } from "@spt/services/LocaleService";
 import { ITemplateItem } from "@spt/models/eft/common/tables/ITemplateItem";
 import { ISeasonalEventConfig } from "@spt/models/spt/config/ISeasonalEventConfig";
 import { ConfigTypes } from "@spt/models/enums/ConfigTypes";
+import { LocationLifecycleService } from "@spt/services/LocationLifecycleService";
+import { ApplicationContext } from "@spt/context/ApplicationContext";
+import { LocationLootGenerator } from "@spt/generators/LocationLootGenerator";
+import { LootGenerator } from "@spt/generators/LootGenerator";
+import { PlayerScavGenerator } from "@spt/generators/PlayerScavGenerator";
+import { HealthHelper } from "@spt/helpers/HealthHelper";
+import { TraderHelper } from "@spt/helpers/TraderHelper";
+import { SaveServer } from "@spt/servers/SaveServer";
+import { BotGenerationCacheService } from "@spt/services/BotGenerationCacheService";
+import { BotLootCacheService } from "@spt/services/BotLootCacheService";
+import { BotNameService } from "@spt/services/BotNameService";
+import { InsuranceService } from "@spt/services/InsuranceService";
+import { LocalisationService } from "@spt/services/LocalisationService";
+import { MailSendService } from "@spt/services/MailSendService";
+import { MatchBotDetailsCacheService } from "@spt/services/MatchBotDetailsCacheService";
+import { PmcChatResponseService } from "@spt/services/PmcChatResponseService";
+import { RaidTimeAdjustmentService } from "@spt/services/RaidTimeAdjustmentService";
+import { HashUtil } from "@spt/utils/HashUtil";
+import { RandomUtil } from "@spt/utils/RandomUtil";
+import { TimeUtil } from "@spt/utils/TimeUtil";
+import { IEndLocalRaidRequestData } from "@spt/models/eft/match/IEndLocalRaidRequestData";
+import { Traders } from "@spt/models/enums/Traders";
 
 class Mod implements IPreSptLoadMod {
     public static locales: Record<string, string>;
@@ -26,24 +48,10 @@ class Mod implements IPreSptLoadMod {
         container.register<InRaidHelperExtension>("InRaidHelperExtension", InRaidHelperExtension);
         container.register("InRaidHelper", { useToken: "InRaidHelperExtension" });
 
+        container.register<LocationlifecycleServiceExtension>("LocationlifecycleServiceExtension", LocationlifecycleServiceExtension);
+        container.register("LocationlifecycleService", { useToken: "LocationlifecycleServiceExtension" });
+
         logger.success("[InsurancePlus] Loaded successfully.");
-    }
-
-    postSptLoad(container: DependencyContainer): void {
-        Mod.locales = container.resolve<LocaleService>("LocaleService").getLocaleDb();
-        Mod.itemTemplates = container.resolve<DatabaseService>("DatabaseService").getTables().templates.items;
-
-        // get the config server so we can get a config with it
-        const configServer = container.resolve<ConfigServer>("ConfigServer");
-
-        // Request seasonal event config
-        const seasonConfig: ISeasonalEventConfig = configServer.getConfig<ISeasonalEventConfig>(ConfigTypes.SEASONAL_EVENT);
-
-        for (const seasonEvent of seasonConfig.events) {
-            // changes here
-            seasonEvent.enabled = true;
-            
-        }
     }
 }
 
@@ -143,5 +151,92 @@ class InRaidHelperExtension extends InRaidHelper {
 
     private findInsuranceIndex(pmcData: IPmcData, itemId: string): number {
         return pmcData.InsuredItems.findIndex((x) => x.itemId === itemId);
+    }
+}
+
+@injectable()
+class LocationlifecycleServiceExtension extends LocationLifecycleService {
+    private config: ModConfig = require("../config/config.json");
+    constructor(
+        @inject("PrimaryLogger") protected logger: ILogger,
+        @inject("HashUtil") protected hashUtil: HashUtil,
+        @inject("SaveServer") protected saveServer: SaveServer,
+        @inject("TimeUtil") protected timeUtil: TimeUtil,
+        @inject("RandomUtil") protected randomUtil: RandomUtil,
+        @inject("ProfileHelper") protected profileHelper: ProfileHelper,
+        @inject("DatabaseService") protected databaseService: DatabaseService,
+        @inject("InRaidHelper") protected inRaidHelper: InRaidHelper,
+        @inject("HealthHelper") protected healthHelper: HealthHelper,
+        @inject("QuestHelper") protected questHelper: QuestHelper,
+        @inject("MatchBotDetailsCacheService") protected matchBotDetailsCacheService: MatchBotDetailsCacheService,
+        @inject("PmcChatResponseService") protected pmcChatResponseService: PmcChatResponseService,
+        @inject("PlayerScavGenerator") protected playerScavGenerator: PlayerScavGenerator,
+        @inject("TraderHelper") protected traderHelper: TraderHelper,
+        @inject("LocalisationService") protected localisationService: LocalisationService,
+        @inject("InsuranceService") protected insuranceService: InsuranceService,
+        @inject("BotLootCacheService") protected botLootCacheService: BotLootCacheService,
+        @inject("ConfigServer") protected configServer: ConfigServer,
+        @inject("BotGenerationCacheService") protected botGenerationCacheService: BotGenerationCacheService,
+        @inject("MailSendService") protected mailSendService: MailSendService,
+        @inject("RaidTimeAdjustmentService") protected raidTimeAdjustmentService: RaidTimeAdjustmentService,
+        @inject("BotNameService") protected botNameService: BotNameService,
+        @inject("LootGenerator") protected lootGenerator: LootGenerator,
+        @inject("ApplicationContext") protected applicationContext: ApplicationContext,
+        @inject("LocationLootGenerator") protected locationLootGenerator: LocationLootGenerator,
+        @inject("PrimaryCloner") protected cloner: ICloner
+    ) {
+        super(logger,
+            hashUtil,
+            saveServer,
+            timeUtil,
+            randomUtil,
+            profileHelper,
+            databaseService,
+            inRaidHelper,
+            healthHelper,
+            questHelper,
+            matchBotDetailsCacheService,
+            pmcChatResponseService,
+            playerScavGenerator,
+            traderHelper,
+            localisationService,
+            insuranceService,
+            botLootCacheService,
+            configServer,
+            botGenerationCacheService,
+            mailSendService,
+            raidTimeAdjustmentService,
+            botNameService,
+            lootGenerator,
+            applicationContext,
+            locationLootGenerator,
+            cloner);
+    }
+
+    protected handleInsuredItemLostEvent(
+        sessionId: string,
+        preRaidPmcProfile: IPmcData,
+        request: IEndLocalRaidRequestData,
+        locationName: string
+    ): void {
+        if (request.lostInsuredItems?.length > 0) {
+            const pmcData: IPmcData = this.profileHelper.getPmcProfile(sessionId);
+            request.lostInsuredItems = request.lostInsuredItems.filter(x => !pmcData.Inventory.items.includes(x));
+
+            const mappedItems = this.insuranceService.mapInsuredItemsToTrader(
+                sessionId,
+                request.lostInsuredItems,
+                request.results.profile
+            );
+
+            // Is possible to have items in lostInsuredItems but removed before reaching mappedItems
+            if (mappedItems.length === 0) {
+                return;
+            }
+
+            this.insuranceService.storeGearLostInRaidToSendLater(sessionId, mappedItems);
+
+            this.insuranceService.startPostRaidInsuranceLostProcess(preRaidPmcProfile, sessionId, locationName);
+        }
     }
 }

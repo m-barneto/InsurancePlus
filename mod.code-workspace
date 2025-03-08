@@ -9,5 +9,8 @@
             "dbaeumer.vscode-eslint",
             "refringe.spt-id-highlighter"
         ]
+    },
+    "settings": {
+        "FSharp.suggestGitignore": false
     }
 }

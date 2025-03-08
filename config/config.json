@@ -1,4 +1,4 @@
 {
-	"LoseInsuranceOnItemAfterDeath": false,
-	"LoseAmmoInMagazines": true
+	"LoseInsuranceOnItemAfterDeath": true,
+	"LoseAmmoInMagazines": false
 }

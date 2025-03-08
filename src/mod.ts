@@ -12,10 +12,6 @@ import { QuestController } from "@spt/controllers/QuestController";
 import { InventoryHelper } from "@spt/helpers/InventoryHelper";
 import { ItemHelper } from "@spt/helpers/ItemHelper";
 import { IItem } from "@spt/models/eft/common/tables/IItem";
-import { LocaleService } from "@spt/services/LocaleService";
-import { ITemplateItem } from "@spt/models/eft/common/tables/ITemplateItem";
-import { ISeasonalEventConfig } from "@spt/models/spt/config/ISeasonalEventConfig";
-import { ConfigTypes } from "@spt/models/enums/ConfigTypes";
 import { LocationLifecycleService } from "@spt/services/LocationLifecycleService";
 import { ApplicationContext } from "@spt/context/ApplicationContext";
 import { LocationLootGenerator } from "@spt/generators/LocationLootGenerator";
@@ -37,21 +33,22 @@ import { HashUtil } from "@spt/utils/HashUtil";
 import { RandomUtil } from "@spt/utils/RandomUtil";
 import { TimeUtil } from "@spt/utils/TimeUtil";
 import { IEndLocalRaidRequestData } from "@spt/models/eft/match/IEndLocalRaidRequestData";
-import { Traders } from "@spt/models/enums/Traders";
+import { BaseClasses } from "@spt/models/enums/BaseClasses";
 
 class Mod implements IPreSptLoadMod {
-    public static locales: Record<string, string>;
-    public static itemTemplates: Record<string, ITemplateItem>;
-    preSptLoad(container: DependencyContainer): void {
-        const logger = container.resolve<ILogger>("WinstonLogger");
+    static logger: ILogger;
 
+    preSptLoad(container: DependencyContainer): void {
+        Mod.logger = container.resolve<ILogger>("WinstonLogger");
+        
+        //Mod.itemTemplates = container.resolve<DatabaseService>("DatabaseService").getTables().templates.items;
         container.register<InRaidHelperExtension>("InRaidHelperExtension", InRaidHelperExtension);
         container.register("InRaidHelper", { useToken: "InRaidHelperExtension" });
 
-        container.register<LocationlifecycleServiceExtension>("LocationlifecycleServiceExtension", LocationlifecycleServiceExtension);
-        container.register("LocationlifecycleService", { useToken: "LocationlifecycleServiceExtension" });
-
-        logger.success("[InsurancePlus] Loaded successfully.");
+        container.register<LocationLifecycleServiceExtension>("LocationLifecycleServiceExtension", LocationLifecycleServiceExtension);
+        container.register("LocationLifecycleService", { useToken: "LocationLifecycleServiceExtension" });
+                                    
+        Mod.logger.success("[InsurancePlus] Loaded successfully.");
     }
 }
 
@@ -100,33 +97,44 @@ class InRaidHelperExtension extends InRaidHelper {
         // Get inventory item ids to remove from players profile
         const itemsLostOnDeath = this.getInventoryItemsLostOnDeath(pmcData);
 
-        for (const item of itemsLostOnDeath) {
+        const itemsToUninsure: string[] = [];
+
+        for (const child of itemsLostOnDeath) {
             // If it's not been marked to keep then we need to check if it's insured and handle it accordingly.
-            const insuredIndex = this.findInsuranceIndex(pmcData, item._id);
+            const insuredIndex = this.findInsuranceIndex(pmcData, child._id);
 
             // if it's insured
             if (insuredIndex !== -1) {
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
-                    pmcData.InsuredItems.splice(insuredIndex, 1);
+                    itemsToUninsure.push(child._id);
+                    //pmcData.InsuredItems.splice(insuredIndex, 1);
                 }
                 // Keep the item but now let's do the same check for the children
-                this.recursiveRemoveUninsured(pmcData, sessionId, item, pmcData.Inventory.items);
+                const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, pmcData.Inventory.items);
+                itemsToUninsure.push(...addToUninsured);
             } else {
                 // Not insured
-                // If it's a required item then we're not gonna remove it
-                // if(!this.isRequiredItem(item,))
-
-                // Items inside containers are handled as part of function
-                this.inventoryHelper.removeItem(pmcData, item._id, sessionId);
+                // If item is ammo, inside mag or gun (slotid check), and we want to keep it, dont remove
+                // ^ opposite of this to make it easier to read
+                if (!(this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.AMMO) && ["cartridges", "patron_in_weapon", "patron_in_weapon_000", "patron_in_weapon_001"].includes(child.slotId) && !this.config.LoseAmmoInMagazines)) {
+                    this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+                }
             }
         }
 
+        // Remove insurance from items
+        pmcData.InsuredItems = pmcData.InsuredItems.filter(insuredItem => {
+            return !itemsToUninsure.includes(insuredItem.itemId);
+        });
+        
         // Remove contents of fast panel
         pmcData.Inventory.fastPanel = {};
     }
 
-    private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItem: IItem, items: IItem[]) {
+    private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItem: IItem, items: IItem[]): string[] {
+        const itemsToUninsure: string[] = [];
+
         // Get the childen of the parent we're looking for (remove the parent from the list)
         const children = this.itemHelper.findAndReturnChildrenAsItems(items, parentItem._id);
         // Remove parent item
@@ -139,14 +147,21 @@ class InRaidHelperExtension extends InRaidHelper {
                 // Insured, maybe remove insurance status and check the children of the item
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
-                    pmcData.InsuredItems.splice(insuredIndex, 1);
+                    itemsToUninsure.push(child._id);
                 }
-                this.recursiveRemoveUninsured(pmcData, sessionId, child, items);
+                // It's insured, remove children if theyre uninsured
+                const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, items);
+                itemsToUninsure.push(...addToUninsured);
             } else {
-                // Remove item as it's not insured
-                this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+                // If item is ammo, inside mag or gun (slotid check), and we want to keep it, dont remove
+                // ^ opposite of this to make it easier to read
+                if (!(this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.AMMO) && ["cartridges", "patron_in_weapon", "patron_in_weapon_000", "patron_in_weapon_001"].includes(child.slotId) && !this.config.LoseAmmoInMagazines)) {
+                    this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+                }
             }
         }
+
+        return itemsToUninsure;
     }
 
     private findInsuranceIndex(pmcData: IPmcData, itemId: string): number {
@@ -155,7 +170,7 @@ class InRaidHelperExtension extends InRaidHelper {
 }
 
 @injectable()
-class LocationlifecycleServiceExtension extends LocationLifecycleService {
+class LocationLifecycleServiceExtension extends LocationLifecycleService {
     private config: ModConfig = require("../config/config.json");
     constructor(
         @inject("PrimaryLogger") protected logger: ILogger,
@@ -185,6 +200,7 @@ class LocationlifecycleServiceExtension extends LocationLifecycleService {
         @inject("LocationLootGenerator") protected locationLootGenerator: LocationLootGenerator,
         @inject("PrimaryCloner") protected cloner: ICloner
     ) {
+        Mod.logger.info("GUH LocationLifecycleService");
         super(logger,
             hashUtil,
             saveServer,
@@ -213,7 +229,7 @@ class LocationlifecycleServiceExtension extends LocationLifecycleService {
             cloner);
     }
 
-    protected handleInsuredItemLostEvent(
+    public handleInsuredItemLostEvent(
         sessionId: string,
         preRaidPmcProfile: IPmcData,
         request: IEndLocalRaidRequestData,
@@ -221,7 +237,12 @@ class LocationlifecycleServiceExtension extends LocationLifecycleService {
     ): void {
         if (request.lostInsuredItems?.length > 0) {
             const pmcData: IPmcData = this.profileHelper.getPmcProfile(sessionId);
-            request.lostInsuredItems = request.lostInsuredItems.filter(x => !pmcData.Inventory.items.includes(x));
+
+            // Remove items that are found in the players inventory (they werent lost)
+            request.lostInsuredItems = request.lostInsuredItems.filter(x => {
+                return pmcData.Inventory.items.filter(y => y._id === x._id).length == 0;
+            });
+
 
             const mappedItems = this.insuranceService.mapInsuredItemsToTrader(
                 sessionId,

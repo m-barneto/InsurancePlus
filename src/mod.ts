@@ -41,7 +41,6 @@ class Mod implements IPreSptLoadMod {
     preSptLoad(container: DependencyContainer): void {
         Mod.logger = container.resolve<ILogger>("WinstonLogger");
         
-        //Mod.itemTemplates = container.resolve<DatabaseService>("DatabaseService").getTables().templates.items;
         container.register<InRaidHelperExtension>("InRaidHelperExtension", InRaidHelperExtension);
         container.register("InRaidHelper", { useToken: "InRaidHelperExtension" });
 

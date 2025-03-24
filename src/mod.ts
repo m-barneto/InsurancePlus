@@ -160,6 +160,9 @@ class InRaidHelperExtension extends InRaidHelper {
 
         // parent is not going to be removed, so check children and make sure theyre insured, otherwise remove them
         for (const child of children) {
+            // Avoid checking twice
+            if (child.parentId !== parentItem._id) continue;
+
             const insuredIndex = this.findInsuranceIndex(pmcData, child._id);
             if (insuredIndex !== -1) {
                 // Insured, maybe remove insurance status and check the children of the item
@@ -167,6 +170,10 @@ class InRaidHelperExtension extends InRaidHelper {
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
                     itemsToUninsure.push(child._id);
+                }
+                if (this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.BUILT_IN_INSERTS)) {
+                    // this.logger.debug(`[InsurancePlus] Skipping soft insert ${this.itemHelper.getItemName(child._tpl)} of item ${this.itemHelper.getItemName(parentItem._tpl)}`)
+                    continue;
                 }
                 if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
                     this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
@@ -202,7 +209,7 @@ class InRaidHelperExtension extends InRaidHelper {
         const rollChance = Mod.randomUtil.getInt(0, 9999) / 100;
         const roll = rollChance >= returnPercent;
         const status = roll ? "Delete" : "Keep";
-        this.logger.debug(`Rolling ${itemName} - Return ${returnPercent}% - Roll: ${rollChance} - Status: ${status}`);
+        this.logger.debug(`[InsurancePlus] Rolling ${itemName} - Return ${returnPercent}% - Roll: ${rollChance} - Status: ${status}`);
         return roll;
     }
 }

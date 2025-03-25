@@ -115,27 +115,37 @@ class InRaidHelperExtension extends InRaidHelper {
         for (const child of itemsLostOnDeath) {
             // If it's not been marked to keep then we need to check if it's insured and handle it accordingly.
             const insuredIndex = this.findInsuranceIndex(pmcData, child._id);
-
+            
             // if it's insured
             if (insuredIndex !== -1) {
-                const traderId = pmcData.InsuredItems[insuredIndex].tid;
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
                     itemsToUninsure.push(child._id);
                     //pmcData.InsuredItems.splice(insuredIndex, 1);
                 }
+                const traderId = pmcData.InsuredItems[insuredIndex].tid;
                 if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
                     this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
                     continue;
                 }
+
+                // Apply attachment strip chance if item is weapon/armor/rig before proceeding to process attachments
+                let toStrip = true;
+                if (Mod.randomUtil.getChance100(this.insuranceConfig.chanceNoAttachmentsTakenPercent)) {
+                    this.logger.debug(`[InsurancePlus] Skipping attachments of ${this.itemHelper.getItemName(child._tpl)}`)
+                    toStrip = false;
+                } else toStrip = true;
+
                 // Keep the item but now let's do the same check for the children
-                const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, pmcData.Inventory.items);
+                const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, pmcData.Inventory.items, toStrip);
                 itemsToUninsure.push(...addToUninsured);
             } else {
                 // Not insured
                 // If item is ammo, inside mag or gun (slotid check), and we want to keep it, dont remove
                 // ^ opposite of this to make it easier to read
-                if (!(this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.AMMO) && ["cartridges", "patron_in_weapon", "patron_in_weapon_000", "patron_in_weapon_001"].includes(child.slotId) && !this.config.LoseAmmoInMagazines)) {
+                if (!(this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.AMMO) 
+                        && ["cartridges", "patron_in_weapon", "patron_in_weapon_000", "patron_in_weapon_001"].includes(child.slotId) 
+                        && !this.config.LoseAmmoInMagazines)) {
                     this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
                 }
             }
@@ -150,7 +160,7 @@ class InRaidHelperExtension extends InRaidHelper {
         pmcData.Inventory.fastPanel = {};
     }
 
-    private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItem: IItem, items: IItem[]): string[] {
+    private recursiveRemoveUninsured(pmcData: IPmcData, sessionId: string, parentItem: IItem, items: IItem[], toStrip: boolean): string[] {
         const itemsToUninsure: string[] = [];
 
         // Get the childen of the parent we're looking for (remove the parent from the list)
@@ -166,21 +176,43 @@ class InRaidHelperExtension extends InRaidHelper {
             const insuredIndex = this.findInsuranceIndex(pmcData, child._id);
             if (insuredIndex !== -1) {
                 // Insured, maybe remove insurance status and check the children of the item
-                const traderId = pmcData.InsuredItems[insuredIndex].tid;
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
                     itemsToUninsure.push(child._id);
                 }
-                if (this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.BUILT_IN_INSERTS)) {
-                    // this.logger.debug(`[InsurancePlus] Skipping soft insert ${this.itemHelper.getItemName(child._tpl)} of item ${this.itemHelper.getItemName(parentItem._tpl)}`)
-                    continue;
+
+                // Skip soft armor for now until compatibility added
+                if (this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.BUILT_IN_INSERTS)) continue;
+
+                // Check if item is a mod, is raidModdable, and if to strip
+                const traderId = pmcData.InsuredItems[insuredIndex].tid;
+                if (toStrip
+                        && child.location === undefined
+                        && this.itemHelper.isRaidModdable(child, parentItem)
+                ) {
+                    if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
+                        this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+                        continue;
+                    }
+                } else {
+                    // If not a mod (item/weapon/rig etc.) always roll!
+                    if (child.location) {
+                        if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
+                            this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+                            continue;
+                        }
+                        // Apply attachment strip chance if not a mod before proceeding to process attachments
+                        if (Mod.randomUtil.getChance100(this.insuranceConfig.chanceNoAttachmentsTakenPercent)) {
+                            this.logger.debug(`[InsurancePlus] Skipping attachments of ${this.itemHelper.getItemName(child._tpl)}`)
+                            toStrip = false;
+                        } else {
+                            toStrip = true
+                        }
+                    }
                 }
-                if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
-                    this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
-                    continue;
-                }
+
                 // It's insured, remove children if theyre uninsured
-                const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, items);
+                const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, items, toStrip);
                 itemsToUninsure.push(...addToUninsured);
             } else {
                 // If item is ammo, inside mag or gun (slotid check), and we want to keep it, dont remove
@@ -200,10 +232,8 @@ class InRaidHelperExtension extends InRaidHelper {
 
     private rollItem(traderId: string, insuredItem?: IItem): boolean {
         const trader = Mod.traderHelper.getTraderById(traderId);
-        if (!trader) 
-        {
-            return undefined;
-        }
+        if (!trader) return undefined;
+        
         const itemName = this.itemHelper.getItemName(insuredItem._tpl);
         const returnPercent = this.config.UseTraderReturnPercent ? this.insuranceConfig.returnChancePercent[traderId] : this.config.RollReturnPercent;
         const rollChance = Mod.randomUtil.getInt(0, 9999) / 100;

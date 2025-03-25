@@ -116,12 +116,12 @@ class InRaidHelperExtension extends InRaidHelper {
             // If it's not been marked to keep then we need to check if it's insured and handle it accordingly.
             const insuredIndex = this.findInsuranceIndex(pmcData, child._id);
             
-            // if it's insured
+            // If it's insured
             if (insuredIndex !== -1) {
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
                     itemsToUninsure.push(child._id);
-                    //pmcData.InsuredItems.splice(insuredIndex, 1);
+                    // pmcData.InsuredItems.splice(insuredIndex, 1);
                 }
                 const traderId = pmcData.InsuredItems[insuredIndex].tid;
                 if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
@@ -129,7 +129,7 @@ class InRaidHelperExtension extends InRaidHelper {
                     continue;
                 }
 
-                // Apply attachment strip chance if item is weapon/armor/rig before proceeding to process attachments
+                // Apply attachment strip chance before proceeding to process attachments
                 let toStrip = true;
                 if (Mod.randomUtil.getChance100(this.insuranceConfig.chanceNoAttachmentsTakenPercent)) {
                     this.logger.debug(`[InsurancePlus] Skipping attachments of ${this.itemHelper.getItemName(child._tpl)}`)
@@ -168,7 +168,7 @@ class InRaidHelperExtension extends InRaidHelper {
         // Remove parent item
         children.splice(0, 1);
 
-        // parent is not going to be removed, so check children and make sure theyre insured, otherwise remove them
+        // Parent is not going to be removed, so check children and make sure theyre insured, otherwise remove them
         for (const child of children) {
             // Avoid checking twice
             if (child.parentId !== parentItem._id) continue;
@@ -184,7 +184,7 @@ class InRaidHelperExtension extends InRaidHelper {
                 // Skip soft armor for now until compatibility added
                 if (this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.BUILT_IN_INSERTS)) continue;
 
-                // Check if item is a mod, is raidModdable, and if to strip
+                // Check if toStrip(based on chanceNoAttachmentsTakenPercent), item is a mod, and can be modified in-raid
                 const traderId = pmcData.InsuredItems[insuredIndex].tid;
                 if (toStrip
                         && child.location === undefined
@@ -201,7 +201,7 @@ class InRaidHelperExtension extends InRaidHelper {
                             this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
                             continue;
                         }
-                        // Apply attachment strip chance if not a mod before proceeding to process attachments
+                        // Apply attachment strip chance since not a mod before proceeding to process attachments
                         if (Mod.randomUtil.getChance100(this.insuranceConfig.chanceNoAttachmentsTakenPercent)) {
                             this.logger.debug(`[InsurancePlus] Skipping attachments of ${this.itemHelper.getItemName(child._tpl)}`)
                             toStrip = false;

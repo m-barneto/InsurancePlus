@@ -34,19 +34,27 @@ import { RandomUtil } from "@spt/utils/RandomUtil";
 import { TimeUtil } from "@spt/utils/TimeUtil";
 import { IEndLocalRaidRequestData } from "@spt/models/eft/match/IEndLocalRaidRequestData";
 import { BaseClasses } from "@spt/models/enums/BaseClasses";
+import { PmcWaveGenerator } from "@spt/generators/PmcWaveGenerator";
+import { RewardHelper } from "@spt/helpers/RewardHelper";
+import { ConfigTypes } from "@spt/models/enums/ConfigTypes";
+import { IInsuranceConfig } from "@spt/models/spt/config/IInsuranceConfig";
 
 class Mod implements IPreSptLoadMod {
     static logger: ILogger;
+    static randomUtil: RandomUtil;
+    static traderHelper: TraderHelper;
 
     preSptLoad(container: DependencyContainer): void {
         Mod.logger = container.resolve<ILogger>("WinstonLogger");
-        
+        Mod.randomUtil = container.resolve<RandomUtil>("RandomUtil");
+        Mod.traderHelper = container.resolve<TraderHelper>("TraderHelper");
+
         container.register<InRaidHelperExtension>("InRaidHelperExtension", InRaidHelperExtension);
         container.register("InRaidHelper", { useToken: "InRaidHelperExtension" });
 
         container.register<LocationLifecycleServiceExtension>("LocationLifecycleServiceExtension", LocationLifecycleServiceExtension);
         container.register("LocationLifecycleService", { useToken: "LocationLifecycleServiceExtension" });
-                                    
+
         Mod.logger.success("[InsurancePlus] Loaded successfully.");
     }
 }
@@ -56,11 +64,15 @@ export const mod = new Mod();
 interface ModConfig {
     LoseInsuranceOnItemAfterDeath: boolean;
     LoseAmmoInMagazines: boolean;
+    RollInsuranceReturn: boolean;
+    RollReturnPercent: number,
+    UseTraderReturnPercent: boolean;
 }
 
 @injectable()
 class InRaidHelperExtension extends InRaidHelper {
     private config: ModConfig = require("../config/config.json");
+    private insuranceConfig: IInsuranceConfig;
 
     constructor(
         @inject("PrimaryLogger") protected logger: ILogger,
@@ -84,6 +96,8 @@ class InRaidHelperExtension extends InRaidHelper {
             profileHelper,
             questHelper
         )
+
+        this.insuranceConfig = this.configServer.getConfig(ConfigTypes.INSURANCE);
     }
 
     /**
@@ -104,10 +118,15 @@ class InRaidHelperExtension extends InRaidHelper {
 
             // if it's insured
             if (insuredIndex !== -1) {
+                const traderId = pmcData.InsuredItems[insuredIndex].tid;
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
                     itemsToUninsure.push(child._id);
                     //pmcData.InsuredItems.splice(insuredIndex, 1);
+                }
+                if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
+                    this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+                    continue;
                 }
                 // Keep the item but now let's do the same check for the children
                 const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, pmcData.Inventory.items);
@@ -141,12 +160,24 @@ class InRaidHelperExtension extends InRaidHelper {
 
         // parent is not going to be removed, so check children and make sure theyre insured, otherwise remove them
         for (const child of children) {
+            // Avoid checking twice
+            if (child.parentId !== parentItem._id) continue;
+
             const insuredIndex = this.findInsuranceIndex(pmcData, child._id);
             if (insuredIndex !== -1) {
                 // Insured, maybe remove insurance status and check the children of the item
+                const traderId = pmcData.InsuredItems[insuredIndex].tid;
                 if (this.config.LoseInsuranceOnItemAfterDeath) {
                     // Remove insured status
                     itemsToUninsure.push(child._id);
+                }
+                if (this.itemHelper.isOfBaseclass(child._tpl, BaseClasses.BUILT_IN_INSERTS)) {
+                    // this.logger.debug(`[InsurancePlus] Skipping soft insert ${this.itemHelper.getItemName(child._tpl)} of item ${this.itemHelper.getItemName(parentItem._tpl)}`)
+                    continue;
+                }
+                if (this.config.RollInsuranceReturn && this.rollItem(traderId, child)) {
+                    this.inventoryHelper.removeItem(pmcData, child._id, sessionId);
+                    continue;
                 }
                 // It's insured, remove children if theyre uninsured
                 const addToUninsured: string[] = this.recursiveRemoveUninsured(pmcData, sessionId, child, items);
@@ -166,11 +197,25 @@ class InRaidHelperExtension extends InRaidHelper {
     private findInsuranceIndex(pmcData: IPmcData, itemId: string): number {
         return pmcData.InsuredItems.findIndex((x) => x.itemId === itemId);
     }
+
+    private rollItem(traderId: string, insuredItem?: IItem): boolean {
+        const trader = Mod.traderHelper.getTraderById(traderId);
+        if (!trader) 
+        {
+            return undefined;
+        }
+        const itemName = this.itemHelper.getItemName(insuredItem._tpl);
+        const returnPercent = this.config.UseTraderReturnPercent ? this.insuranceConfig.returnChancePercent[traderId] : this.config.RollReturnPercent;
+        const rollChance = Mod.randomUtil.getInt(0, 9999) / 100;
+        const roll = rollChance >= returnPercent;
+        const status = roll ? "Delete" : "Keep";
+        this.logger.debug(`[InsurancePlus] Rolling ${itemName} - Return ${returnPercent}% - Roll: ${rollChance} - Status: ${status}`);
+        return roll;
+    }
 }
 
 @injectable()
 class LocationLifecycleServiceExtension extends LocationLifecycleService {
-    private config: ModConfig = require("../config/config.json");
     constructor(
         @inject("PrimaryLogger") protected logger: ILogger,
         @inject("HashUtil") protected hashUtil: HashUtil,
@@ -182,6 +227,7 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
         @inject("InRaidHelper") protected inRaidHelper: InRaidHelper,
         @inject("HealthHelper") protected healthHelper: HealthHelper,
         @inject("QuestHelper") protected questHelper: QuestHelper,
+        @inject("RewardHelper") protected rewardHelper: RewardHelper,
         @inject("MatchBotDetailsCacheService") protected matchBotDetailsCacheService: MatchBotDetailsCacheService,
         @inject("PmcChatResponseService") protected pmcChatResponseService: PmcChatResponseService,
         @inject("PlayerScavGenerator") protected playerScavGenerator: PlayerScavGenerator,
@@ -197,9 +243,9 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
         @inject("LootGenerator") protected lootGenerator: LootGenerator,
         @inject("ApplicationContext") protected applicationContext: ApplicationContext,
         @inject("LocationLootGenerator") protected locationLootGenerator: LocationLootGenerator,
+        @inject("PmcWaveGenerator") protected pmcWaveGenerator: PmcWaveGenerator,
         @inject("PrimaryCloner") protected cloner: ICloner
     ) {
-        Mod.logger.info("GUH LocationLifecycleService");
         super(logger,
             hashUtil,
             saveServer,
@@ -210,6 +256,7 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
             inRaidHelper,
             healthHelper,
             questHelper,
+            rewardHelper,
             matchBotDetailsCacheService,
             pmcChatResponseService,
             playerScavGenerator,
@@ -225,6 +272,7 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
             lootGenerator,
             applicationContext,
             locationLootGenerator,
+            pmcWaveGenerator,
             cloner);
     }
 

@@ -1,8 +1,10 @@
 {
     "name": "insuranceplus",
-    "version": "1.2.8",
-    "sptVersion": "~3.10",
-    "loadBefore": [],
+    "version": "1.3.2",
+    "sptVersion": "~3.11",
+    "loadBefore": [
+        "fika-server"
+    ],
     "loadAfter": [],
     "incompatibilities": [],
     "isBundleMod": false,
@@ -21,7 +23,7 @@
         "fs-extra": "11.2",
         "ignore": "^5.2",
         "tsyringe": "4.8.0",
-        "typescript": "5.4",
+        "typescript": "5.8",
         "winston": "3.12"
     },
     "author": "Mattdokn",

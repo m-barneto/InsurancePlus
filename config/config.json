@@ -1,4 +1,7 @@
 {
-	"LoseInsuranceOnItemAfterDeath": false,
-	"LoseAmmoInMagazines": false
+	"LoseInsuranceOnItemAfterDeath": true,
+	"LoseAmmoInMagazines": false,
+	"RollInsuranceReturn": true,
+	"RollReturnPercent": 50,
+	"UseTraderReturnPercent": true
 }

@@ -34,6 +34,8 @@ import { RandomUtil } from "@spt/utils/RandomUtil";
 import { TimeUtil } from "@spt/utils/TimeUtil";
 import { IEndLocalRaidRequestData } from "@spt/models/eft/match/IEndLocalRaidRequestData";
 import { BaseClasses } from "@spt/models/enums/BaseClasses";
+import { RewardHelper } from "@spt/helpers/RewardHelper";
+import { PmcWaveGenerator } from "@spt/generators/PmcWaveGenerator";
 
 class Mod implements IPreSptLoadMod {
     static logger: ILogger;
@@ -93,8 +95,10 @@ class InRaidHelperExtension extends InRaidHelper {
      * @param sessionId Session id
      */
     public deleteInventory(pmcData: IPmcData, sessionId: string): void {
+        Mod.logger.info(`Deleting inventory for ${pmcData.Info.Nickname}`);
         // Get inventory item ids to remove from players profile
         const itemsLostOnDeath = this.getInventoryItemsLostOnDeath(pmcData);
+        Mod.logger.info(`Items lost on death: ${itemsLostOnDeath.length}`);
 
         const itemsToUninsure: string[] = [];
 
@@ -182,6 +186,7 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
         @inject("InRaidHelper") protected inRaidHelper: InRaidHelper,
         @inject("HealthHelper") protected healthHelper: HealthHelper,
         @inject("QuestHelper") protected questHelper: QuestHelper,
+        @inject("RewardHelper") protected rewardHelper: RewardHelper,
         @inject("MatchBotDetailsCacheService") protected matchBotDetailsCacheService: MatchBotDetailsCacheService,
         @inject("PmcChatResponseService") protected pmcChatResponseService: PmcChatResponseService,
         @inject("PlayerScavGenerator") protected playerScavGenerator: PlayerScavGenerator,
@@ -197,6 +202,7 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
         @inject("LootGenerator") protected lootGenerator: LootGenerator,
         @inject("ApplicationContext") protected applicationContext: ApplicationContext,
         @inject("LocationLootGenerator") protected locationLootGenerator: LocationLootGenerator,
+        @inject("PmcWaveGenerator") protected pmcWaveGenerator: PmcWaveGenerator,
         @inject("PrimaryCloner") protected cloner: ICloner
     ) {
         Mod.logger.info("GUH LocationLifecycleService");
@@ -210,6 +216,7 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
             inRaidHelper,
             healthHelper,
             questHelper,
+            rewardHelper,
             matchBotDetailsCacheService,
             pmcChatResponseService,
             playerScavGenerator,
@@ -225,6 +232,7 @@ class LocationLifecycleServiceExtension extends LocationLifecycleService {
             lootGenerator,
             applicationContext,
             locationLootGenerator,
+            pmcWaveGenerator,
             cloner);
     }
 
